@@ -292,7 +292,7 @@ func (a *TaskUsecase) Create(ctx context.Context, user *domain.User, req domain.
 				BaseURL:  m.BaseURL,
 				Model:    m.Model,
 			},
-			Cores:  fmt.Sprintf("%d", req.Resource.Core),
+			Cores:  int32(req.Resource.Core),
 			Memory: req.Resource.Memory,
 		})
 		if err != nil {

@@ -39,4 +39,9 @@ func RegisterHandlers(e *echo.Echo, h *handler.Handlers) {
 	internal.GET("/task/list", h.Task.List)
 
 	internal.GET("/stats", h.Stats.Get)
+
+	internal.GET("/port-forward", h.PortForward.List)
+	internal.POST("/port-forward", h.PortForward.Create)
+	internal.PUT("/port-forward", h.PortForward.Update)
+	internal.POST("/port-forward/close", h.PortForward.Close)
 }

@@ -200,6 +200,14 @@ func (_c *GitIdentityCreate) SetID(v uuid.UUID) *GitIdentityCreate {
 	return _c
 }
 
+// SetNillableID sets the "id" field if the given value is not nil.
+func (_c *GitIdentityCreate) SetNillableID(v *uuid.UUID) *GitIdentityCreate {
+	if v != nil {
+		_c.SetID(*v)
+	}
+	return _c
+}
+
 // SetUser sets the "user" edge to the User entity.
 func (_c *GitIdentityCreate) SetUser(v *User) *GitIdentityCreate {
 	return _c.SetUserID(v.ID)
@@ -285,6 +293,13 @@ func (_c *GitIdentityCreate) defaults() error {
 		}
 		v := gitidentity.DefaultUpdatedAt()
 		_c.mutation.SetUpdatedAt(v)
+	}
+	if _, ok := _c.mutation.ID(); !ok {
+		if gitidentity.DefaultID == nil {
+			return fmt.Errorf("db: uninitialized gitidentity.DefaultID (forgotten import db/runtime?)")
+		}
+		v := gitidentity.DefaultID()
+		_c.mutation.SetID(v)
 	}
 	return nil
 }

@@ -129,7 +129,7 @@ type CreateVirtualMachineReq struct {
 	TTL                 TTL            `json:"ttl" validate:"required"`
 	TaskID              uuid.UUID      `json:"task_id"`
 	LLM                 LLMProviderReq `json:"llm"`
-	Cores               string         `json:"cores"`
+	Cores               int32          `json:"cores"`
 	Memory              uint64         `json:"memory"`
 	InstallCodingAgents bool           `json:"install_coding_agents"`
 	Envs                []string       `json:"envs,omitempty"`

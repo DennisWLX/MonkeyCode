@@ -9,6 +9,7 @@ import (
 	"github.com/GoYoko/web"
 	"github.com/samber/do"
 
+	"github.com/chaitin/MonkeyCode/backend"
 	"github.com/chaitin/MonkeyCode/backend/biz"
 	"github.com/chaitin/MonkeyCode/backend/config"
 	"github.com/chaitin/MonkeyCode/backend/db"
@@ -37,6 +38,9 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to register infra: %v\n", err)
 		os.Exit(1)
 	}
+
+	// 启用公共主机支持（必须在 biz.RegisterAll 之前调用）
+	backend.WithPublicHost()(injector)
 
 	// 注册业务模块
 	if err := biz.RegisterAll(injector); err != nil {

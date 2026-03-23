@@ -654,6 +654,9 @@ func (_c *VirtualMachineCreate) createSpec() (*VirtualMachine, *sqlgraph.CreateS
 		createE.defaults()
 		_, specE := createE.createSpec()
 		edge.Target.Fields = specE.Fields
+		if specE.ID.Value != nil {
+			edge.Target.Fields = append(edge.Target.Fields, specE.ID)
+		}
 		_spec.Edges = append(_spec.Edges, edge)
 	}
 	if nodes := _c.mutation.TaskVmsIDs(); len(nodes) > 0 {

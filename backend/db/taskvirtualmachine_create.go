@@ -58,6 +58,14 @@ func (_c *TaskVirtualMachineCreate) SetID(v uuid.UUID) *TaskVirtualMachineCreate
 	return _c
 }
 
+// SetNillableID sets the "id" field if the given value is not nil.
+func (_c *TaskVirtualMachineCreate) SetNillableID(v *uuid.UUID) *TaskVirtualMachineCreate {
+	if v != nil {
+		_c.SetID(*v)
+	}
+	return _c
+}
+
 // SetTask sets the "task" edge to the Task entity.
 func (_c *TaskVirtualMachineCreate) SetTask(v *Task) *TaskVirtualMachineCreate {
 	return _c.SetTaskID(v.ID)
@@ -106,6 +114,10 @@ func (_c *TaskVirtualMachineCreate) defaults() {
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := taskvirtualmachine.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
+	}
+	if _, ok := _c.mutation.ID(); !ok {
+		v := taskvirtualmachine.DefaultID()
+		_c.mutation.SetID(v)
 	}
 }
 

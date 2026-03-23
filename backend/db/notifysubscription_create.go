@@ -114,6 +114,14 @@ func (_c *NotifySubscriptionCreate) SetID(v uuid.UUID) *NotifySubscriptionCreate
 	return _c
 }
 
+// SetNillableID sets the "id" field if the given value is not nil.
+func (_c *NotifySubscriptionCreate) SetNillableID(v *uuid.UUID) *NotifySubscriptionCreate {
+	if v != nil {
+		_c.SetID(*v)
+	}
+	return _c
+}
+
 // SetChannel sets the "channel" edge to the NotifyChannel entity.
 func (_c *NotifySubscriptionCreate) SetChannel(v *NotifyChannel) *NotifySubscriptionCreate {
 	return _c.SetChannelID(v.ID)
@@ -177,6 +185,13 @@ func (_c *NotifySubscriptionCreate) defaults() error {
 		}
 		v := notifysubscription.DefaultUpdatedAt()
 		_c.mutation.SetUpdatedAt(v)
+	}
+	if _, ok := _c.mutation.ID(); !ok {
+		if notifysubscription.DefaultID == nil {
+			return fmt.Errorf("db: uninitialized notifysubscription.DefaultID (forgotten import db/runtime?)")
+		}
+		v := notifysubscription.DefaultID()
+		_c.mutation.SetID(v)
 	}
 	return nil
 }

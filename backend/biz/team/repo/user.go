@@ -212,6 +212,7 @@ func (r *TeamGroupUserRepo) ModifyGroupUsers(ctx context.Context, groupID uuid.U
 
 		// 添加到组
 		member, err := r.db.TeamGroupMember.Create().
+			SetID(uuid.New()).
 			SetGroupID(groupID).
 			SetUserID(userID).
 			Save(ctx)

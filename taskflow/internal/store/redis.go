@@ -38,6 +38,15 @@ type Task struct {
 	CreatedAt int64  `json:"created_at"`
 }
 
+type PortForward struct {
+	ID            string `json:"id"`
+	VMID          string `json:"vm_id"`
+	HostPort      int    `json:"host_port"`
+	ContainerPort int    `json:"container_port"`
+	Protocol      string `json:"protocol"`
+	Status        string `json:"status"`
+}
+
 type RedisStore struct {
 	client *redis.Client
 }
@@ -183,4 +192,46 @@ func (s *RedisStore) RemoveUserTask(ctx context.Context, userID, taskID string) 
 
 func (s *RedisStore) Ping(ctx context.Context) error {
 	return s.client.Ping(ctx).Err()
+}
+
+func (s *RedisStore) SetPortForward(ctx context.Context, fwd *PortForward) error {
+	data, err := json.Marshal(fwd)
+	if err != nil {
+		return err
+	}
+	key := fmt.Sprintf("portforward:%s", fwd.ID)
+	return s.client.Set(ctx, key, data, 0).Err()
+}
+
+func (s *RedisStore) GetPortForward(ctx context.Context, id string) (*PortForward, error) {
+	key := fmt.Sprintf("portforward:%s", id)
+	data, err := s.client.Get(ctx, key).Bytes()
+	if err != nil {
+		return nil, err
+	}
+	var fwd PortForward
+	if err := json.Unmarshal(data, &fwd); err != nil {
+		return nil, err
+	}
+	return &fwd, nil
+}
+
+func (s *RedisStore) DeletePortForward(ctx context.Context, id string) error {
+	key := fmt.Sprintf("portforward:%s", id)
+	return s.client.Del(ctx, key).Err()
+}
+
+func (s *RedisStore) AddVMForwardID(ctx context.Context, vmID, forwardID string) error {
+	key := fmt.Sprintf("vm:%s:forwards", vmID)
+	return s.client.SAdd(ctx, key, forwardID).Err()
+}
+
+func (s *RedisStore) GetVMForwardIDs(ctx context.Context, vmID string) ([]string, error) {
+	key := fmt.Sprintf("vm:%s:forwards", vmID)
+	return s.client.SMembers(ctx, key).Result()
+}
+
+func (s *RedisStore) RemoveVMForwardID(ctx context.Context, vmID, forwardID string) error {
+	key := fmt.Sprintf("vm:%s:forwards", vmID)
+	return s.client.SRem(ctx, key, forwardID).Err()
 }

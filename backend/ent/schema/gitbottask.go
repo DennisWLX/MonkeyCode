@@ -24,7 +24,7 @@ func (GitBotTask) Annotations() []schema.Annotation {
 
 func (GitBotTask) Fields() []ent.Field {
 	return []ent.Field{
-		field.UUID("id", uuid.UUID{}).Default(uuid.New),
+		field.UUID("id", uuid.UUID{}).Default(uuid.New).Default(uuid.New),
 		field.UUID("git_bot_id", uuid.UUID{}),
 		field.UUID("task_id", uuid.UUID{}),
 		field.Time("created_at").Default(time.Now),

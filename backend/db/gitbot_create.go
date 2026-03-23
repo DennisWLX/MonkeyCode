@@ -125,6 +125,14 @@ func (_c *GitBotCreate) SetID(v uuid.UUID) *GitBotCreate {
 	return _c
 }
 
+// SetNillableID sets the "id" field if the given value is not nil.
+func (_c *GitBotCreate) SetNillableID(v *uuid.UUID) *GitBotCreate {
+	if v != nil {
+		_c.SetID(*v)
+	}
+	return _c
+}
+
 // AddGitBotTaskIDs adds the "git_bot_tasks" edge to the GitBotTask entity by IDs.
 func (_c *GitBotCreate) AddGitBotTaskIDs(ids ...uuid.UUID) *GitBotCreate {
 	_c.mutation.AddGitBotTaskIDs(ids...)
@@ -248,6 +256,13 @@ func (_c *GitBotCreate) defaults() error {
 		}
 		v := gitbot.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
+	}
+	if _, ok := _c.mutation.ID(); !ok {
+		if gitbot.DefaultID == nil {
+			return fmt.Errorf("db: uninitialized gitbot.DefaultID (forgotten import db/runtime?)")
+		}
+		v := gitbot.DefaultID()
+		_c.mutation.SetID(v)
 	}
 	return nil
 }

@@ -31,7 +31,12 @@ func (r *AuditRepo) CreateAudit(ctx context.Context, a *domain.Audit) error {
 		return errcode.ErrDatabaseOperation.Wrap(errors.New("user is nil"))
 	}
 
+	if a.ID == uuid.Nil {
+		a.ID = uuid.New()
+	}
+
 	return r.db.Audit.Create().
+		SetID(a.ID).
 		SetUserID(a.User.ID).
 		SetOperation(a.Operation).
 		SetSourceIP(a.SourceIP).

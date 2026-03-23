@@ -16,6 +16,7 @@ import (
 	grpcclient "github.com/chaitin/MonkeyCode/runner/internal/client"
 	"github.com/chaitin/MonkeyCode/runner/internal/config"
 	"github.com/chaitin/MonkeyCode/runner/internal/docker"
+	"github.com/chaitin/MonkeyCode/runner/internal/portforward"
 	"github.com/chaitin/MonkeyCode/runner/internal/task"
 	"github.com/chaitin/MonkeyCode/runner/internal/terminal"
 	"github.com/chaitin/MonkeyCode/runner/internal/vm"
@@ -46,6 +47,7 @@ func main() {
 	termMgr := terminal.NewManager(logger, dockerCli)
 	taskMgr := task.NewManager()
 	taskExecutor := task.NewExecutor(taskMgr, nil, logger)
+	forwardMgr := portforward.NewManager(logger)
 
 	grpcClient, err := grpcclient.New(cfg.GRPCAddr, logger)
 	if err != nil {
@@ -66,7 +68,7 @@ func main() {
 	logger.Info("runner registered", "runner_id", runnerID, "hostname", hostname, "ip", ip)
 
 	go startHeartbeat(ctx, grpcClient, runnerID, vmMgr, taskExecutor, logger)
-	go startHTTPServer(ctx, vmMgr, termMgr, taskMgr, taskExecutor, logger)
+	go startHTTPServer(ctx, vmMgr, termMgr, taskMgr, taskExecutor, forwardMgr, logger)
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
@@ -118,7 +120,7 @@ func startHeartbeat(ctx context.Context, grpcClient *grpcclient.Client, runnerID
 	}
 }
 
-func startHTTPServer(ctx context.Context, vmMgr *vm.Manager, termMgr *terminal.Manager, taskMgr *task.Manager, taskExecutor *task.Executor, logger *slog.Logger) {
+func startHTTPServer(ctx context.Context, vmMgr *vm.Manager, termMgr *terminal.Manager, taskMgr *task.Manager, taskExecutor *task.Executor, forwardMgr *portforward.Manager, logger *slog.Logger) {
 	wsHandler := terminal.NewWebSocketHandler(termMgr, logger)
 
 	http.HandleFunc("/terminal", func(w http.ResponseWriter, r *http.Request) {
@@ -180,6 +182,81 @@ func startHTTPServer(ctx context.Context, vmMgr *vm.Manager, termMgr *terminal.M
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("ok"))
+	})
+
+	http.HandleFunc("/internal/port-forward", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			forwardID := r.URL.Query().Get("id")
+			if forwardID != "" {
+				fwd, ok := forwardMgr.Get(forwardID)
+				if !ok {
+					http.Error(w, "not found", http.StatusNotFound)
+					return
+				}
+				json.NewEncoder(w).Encode([]*portforward.Forward{fwd})
+				return
+			}
+			forwards := forwardMgr.List()
+			json.NewEncoder(w).Encode(forwards)
+
+		case http.MethodPost:
+			var req struct {
+				ContainerID   string `json:"container_id"`
+				HostPort       int    `json:"host_port"`
+				ContainerPort  int    `json:"container_port"`
+				Protocol       string `json:"protocol"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				http.Error(w, "invalid request", http.StatusBadRequest)
+				return
+			}
+			fwd, err := forwardMgr.Start(ctx, req.ContainerID, req.HostPort, req.ContainerPort, req.Protocol)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			json.NewEncoder(w).Encode(fwd)
+
+		case http.MethodPut:
+			var req struct {
+				ID         string `json:"id"`
+				HostPort   int    `json:"host_port"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				http.Error(w, "invalid request", http.StatusBadRequest)
+				return
+			}
+			fwd, ok := forwardMgr.Get(req.ID)
+			if !ok {
+				http.Error(w, "not found", http.StatusNotFound)
+				return
+			}
+			fwd.HostPort = req.HostPort
+			json.NewEncoder(w).Encode(fwd)
+
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	http.HandleFunc("/internal/port-forward/close", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req struct {
+			ID string `json:"id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid request", http.StatusBadRequest)
+			return
+		}
+		if err := forwardMgr.Stop(req.ID); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
 	})
 
 	server := &http.Server{

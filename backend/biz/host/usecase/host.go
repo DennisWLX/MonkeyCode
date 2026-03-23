@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"net/url"
 	"sort"
-	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -358,7 +357,7 @@ func (h *HostUsecase) CreateVM(ctx context.Context, user *domain.User, req *doma
 					Seconds: req.Life,
 				},
 				LLM:                 LLMConfig,
-				Cores:               strconv.Itoa(req.Resource.CPU),
+				Cores:               int32(req.Resource.CPU),
 				Memory:              uint64(req.Resource.Memory),
 				InstallCodingAgents: req.InstallCodingAgents,
 			})

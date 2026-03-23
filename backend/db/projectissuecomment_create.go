@@ -106,6 +106,14 @@ func (_c *ProjectIssueCommentCreate) SetID(v uuid.UUID) *ProjectIssueCommentCrea
 	return _c
 }
 
+// SetNillableID sets the "id" field if the given value is not nil.
+func (_c *ProjectIssueCommentCreate) SetNillableID(v *uuid.UUID) *ProjectIssueCommentCreate {
+	if v != nil {
+		_c.SetID(*v)
+	}
+	return _c
+}
+
 // SetUser sets the "user" edge to the User entity.
 func (_c *ProjectIssueCommentCreate) SetUser(v *User) *ProjectIssueCommentCreate {
 	return _c.SetUserID(v.ID)
@@ -186,6 +194,13 @@ func (_c *ProjectIssueCommentCreate) defaults() error {
 		}
 		v := projectissuecomment.DefaultUpdatedAt()
 		_c.mutation.SetUpdatedAt(v)
+	}
+	if _, ok := _c.mutation.ID(); !ok {
+		if projectissuecomment.DefaultID == nil {
+			return fmt.Errorf("db: uninitialized projectissuecomment.DefaultID (forgotten import db/runtime?)")
+		}
+		v := projectissuecomment.DefaultID()
+		_c.mutation.SetID(v)
 	}
 	return nil
 }

@@ -253,26 +253,28 @@ func (t *TaskRepo) Create(ctx context.Context, u *domain.User, req domain.Create
 		}
 
 		if req.UsePublicHost {
-			cnt, err := tx.VirtualMachine.Query().
-				Where(virtualmachine.UserID(u.ID)).
-				Where(virtualmachine.HasHostWith(host.HasUserWith(user.Role(consts.UserRoleAdmin)))).
-				Where(func(s *sql.Selector) {
-					s.Where(sql.P(func(b *sql.Builder) {
-						b.WriteString("NOW()").
-							WriteOp(sql.OpLT).
-							Ident(s.C(virtualmachine.FieldCreatedAt)).
-							WriteOp(sql.OpAdd).
-							WriteString("make_interval(secs => ").
-							Ident(s.C(virtualmachine.FieldTTL)).
-							WriteByte(')')
-					}))
-				}).
-				Count(ctx)
-			if err != nil {
-				return errcode.ErrDatabaseOperation.Wrap(err)
-			}
-			if cnt >= t.cfg.PublicHost.CountLimit {
-				return errcode.ErrPublicHostBeyondLimit.Wrap(fmt.Errorf("public host limit reached"))
+			if t.cfg.PublicHost.CountLimit > 0 {
+				cnt, err := tx.VirtualMachine.Query().
+					Where(virtualmachine.UserID(u.ID)).
+					Where(virtualmachine.HasHostWith(host.HasUserWith(user.Role(consts.UserRoleAdmin)))).
+					Where(func(s *sql.Selector) {
+						s.Where(sql.P(func(b *sql.Builder) {
+							b.WriteString("NOW()").
+								WriteOp(sql.OpLT).
+								Ident(s.C(virtualmachine.FieldCreatedAt)).
+								WriteOp(sql.OpAdd).
+								WriteString("make_interval(secs => ").
+								Ident(s.C(virtualmachine.FieldTTL)).
+								WriteByte(')')
+						}))
+					}).
+					Count(ctx)
+				if err != nil {
+					return errcode.ErrDatabaseOperation.Wrap(err)
+				}
+				if cnt >= t.cfg.PublicHost.CountLimit {
+					return errcode.ErrPublicHostBeyondLimit.Wrap(fmt.Errorf("public host limit reached"))
+				}
 			}
 		}
 

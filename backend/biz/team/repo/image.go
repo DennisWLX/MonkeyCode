@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"entgo.io/ent/dialect/sql"
@@ -66,18 +67,24 @@ func (r *teamImageRepo) Get(ctx context.Context, teamID, imageID uuid.UUID) (*db
 }
 
 func (r *teamImageRepo) Create(ctx context.Context, teamID, userID uuid.UUID, req *domain.AddTeamImageReq) (*db.Image, error) {
-	var imgID uuid.UUID
+	var img *db.Image
 	err := entx.WithTx2(ctx, r.db, func(tx *db.Tx) error {
 		tgs, err := tx.TeamGroup.Query().
 			Where(teamgroup.IDIn(req.GroupIDs...)).
+			Where(teamgroup.TeamIDEQ(teamID)).
 			All(ctx)
 		if err != nil {
 			return err
 		}
 
+		if len(tgs) != len(req.GroupIDs) {
+			return errors.New("some group ids do not exist or do not belong to the team")
+		}
+
 		req.GroupIDs = cvt.Iter(tgs, func(_ int, tg *db.TeamGroup) uuid.UUID { return tg.ID })
 
-		img, err := tx.Image.Create().
+		img, err = tx.Image.Create().
+			SetID(uuid.New()).
 			SetUserID(userID).
 			SetName(req.Name).
 			SetRemark(req.Remark).
@@ -85,9 +92,9 @@ func (r *teamImageRepo) Create(ctx context.Context, teamID, userID uuid.UUID, re
 		if err != nil {
 			return err
 		}
-		imgID = img.ID
 
 		if err := tx.TeamImage.Create().
+			SetID(uuid.New()).
 			SetImageID(img.ID).
 			SetTeamID(teamID).
 			Exec(ctx); err != nil {
@@ -97,6 +104,7 @@ func (r *teamImageRepo) Create(ctx context.Context, teamID, userID uuid.UUID, re
 		builders := make([]*db.TeamGroupImageCreate, 0)
 		for _, gid := range req.GroupIDs {
 			builders = append(builders, tx.TeamGroupImage.Create().
+				SetID(uuid.New()).
 				SetGroupID(gid).
 				SetImageID(img.ID))
 		}
@@ -112,19 +120,28 @@ func (r *teamImageRepo) Create(ctx context.Context, teamID, userID uuid.UUID, re
 		r.logger.Error("create team image with group", "error", err)
 		return nil, errcode.ErrDatabaseOperation.Wrap(err)
 	}
-	return r.Get(ctx, teamID, imgID)
+	return r.Get(ctx, teamID, img.ID)
 }
 
 func (r *teamImageRepo) Update(ctx context.Context, teamID uuid.UUID, req *domain.UpdateTeamImageReq) (*db.Image, error) {
 	err := entx.WithTx2(ctx, r.db, func(tx *db.Tx) error {
-		tgs, err := tx.TeamGroup.Query().
-			Where(teamgroup.IDIn(req.GroupIDs...)).
-			All(ctx)
-		if err != nil {
-			return err
-		}
+		var tgs []*db.TeamGroup
+		var err error
+		if len(req.GroupIDs) > 0 {
+			tgs, err = tx.TeamGroup.Query().
+				Where(teamgroup.IDIn(req.GroupIDs...)).
+				Where(teamgroup.TeamIDEQ(teamID)).
+				All(ctx)
+			if err != nil {
+				return err
+			}
 
-		req.GroupIDs = cvt.Iter(tgs, func(_ int, tg *db.TeamGroup) uuid.UUID { return tg.ID })
+			if len(tgs) != len(req.GroupIDs) {
+				return errors.New("some group ids do not exist or do not belong to the team")
+			}
+
+			req.GroupIDs = cvt.Iter(tgs, func(_ int, tg *db.TeamGroup) uuid.UUID { return tg.ID })
+		}
 		upt := r.db.Image.UpdateOneID(req.ImageID).Where(image.HasTeamsWith(team.ID(teamID)))
 		if req.Name != "" {
 			upt.SetName(req.Name)

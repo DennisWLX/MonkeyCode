@@ -91,6 +91,14 @@ func (_c *TeamCreate) SetID(v uuid.UUID) *TeamCreate {
 	return _c
 }
 
+// SetNillableID sets the "id" field if the given value is not nil.
+func (_c *TeamCreate) SetNillableID(v *uuid.UUID) *TeamCreate {
+	if v != nil {
+		_c.SetID(*v)
+	}
+	return _c
+}
+
 // AddGroupIDs adds the "groups" edge to the TeamGroup entity by IDs.
 func (_c *TeamCreate) AddGroupIDs(ids ...uuid.UUID) *TeamCreate {
 	_c.mutation.AddGroupIDs(ids...)
@@ -247,6 +255,13 @@ func (_c *TeamCreate) defaults() error {
 		v := team.DefaultUpdatedAt()
 		_c.mutation.SetUpdatedAt(v)
 	}
+	if _, ok := _c.mutation.ID(); !ok {
+		if team.DefaultID == nil {
+			return fmt.Errorf("db: uninitialized team.DefaultID (forgotten import db/runtime?)")
+		}
+		v := team.DefaultID()
+		_c.mutation.SetID(v)
+	}
 	return nil
 }
 
@@ -359,6 +374,9 @@ func (_c *TeamCreate) createSpec() (*Team, *sqlgraph.CreateSpec) {
 		createE.defaults()
 		_, specE := createE.createSpec()
 		edge.Target.Fields = specE.Fields
+		if specE.ID.Value != nil {
+			edge.Target.Fields = append(edge.Target.Fields, specE.ID)
+		}
 		_spec.Edges = append(_spec.Edges, edge)
 	}
 	if nodes := _c.mutation.ModelsIDs(); len(nodes) > 0 {
@@ -379,6 +397,9 @@ func (_c *TeamCreate) createSpec() (*Team, *sqlgraph.CreateSpec) {
 		createE.defaults()
 		_, specE := createE.createSpec()
 		edge.Target.Fields = specE.Fields
+		if specE.ID.Value != nil {
+			edge.Target.Fields = append(edge.Target.Fields, specE.ID)
+		}
 		_spec.Edges = append(_spec.Edges, edge)
 	}
 	if nodes := _c.mutation.ImagesIDs(); len(nodes) > 0 {
@@ -399,6 +420,9 @@ func (_c *TeamCreate) createSpec() (*Team, *sqlgraph.CreateSpec) {
 		createE.defaults()
 		_, specE := createE.createSpec()
 		edge.Target.Fields = specE.Fields
+		if specE.ID.Value != nil {
+			edge.Target.Fields = append(edge.Target.Fields, specE.ID)
+		}
 		_spec.Edges = append(_spec.Edges, edge)
 	}
 	if nodes := _c.mutation.TeamMembersIDs(); len(nodes) > 0 {
