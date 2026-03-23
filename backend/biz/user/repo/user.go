@@ -11,6 +11,7 @@ import (
 	"github.com/chaitin/MonkeyCode/backend/config"
 	"github.com/chaitin/MonkeyCode/backend/consts"
 	"github.com/chaitin/MonkeyCode/backend/db"
+	"github.com/chaitin/MonkeyCode/backend/db/team"
 	"github.com/chaitin/MonkeyCode/backend/db/user"
 	"github.com/chaitin/MonkeyCode/backend/domain"
 	"github.com/chaitin/MonkeyCode/backend/errcode"
@@ -112,4 +113,29 @@ func (u *userRepo) ChangePassword(ctx context.Context, userID uuid.UUID, current
 // GetUserByEmail implements domain.UserRepo.
 func (u *userRepo) GetUserByEmail(ctx context.Context, emails []string) ([]*db.User, error) {
 	return u.db.User.Query().WithTeams().Where(user.EmailIn(emails...)).All(ctx)
+}
+
+// GetTeamMembers implements domain.UserRepo.
+func (u *userRepo) GetTeamMembers(ctx context.Context, userID uuid.UUID) ([]*db.User, error) {
+	// 获取用户所在的团队
+	userWithTeams, err := u.db.User.Query().
+		Where(user.IDEQ(userID)).
+		WithTeams().
+		First(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// 检查用户是否属于任何团队
+	if len(userWithTeams.Edges.Teams) == 0 {
+		return []*db.User{}, nil
+	}
+
+	// 获取第一个团队的所有成员
+	teamID := userWithTeams.Edges.Teams[0].ID
+	return u.db.Team.Query().
+		Where(team.IDEQ(teamID)).
+		QueryMembers().
+		WithTeams().
+		All(ctx)
 }

@@ -2,8 +2,10 @@ package pkg
 
 import (
 	"log/slog"
+	"golang.org/x/text/language"
 
 	"github.com/GoYoko/web"
+	"github.com/GoYoko/web/locale"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/samber/do"
@@ -12,6 +14,7 @@ import (
 	"github.com/chaitin/MonkeyCode/backend/consts"
 	"github.com/chaitin/MonkeyCode/backend/db"
 	"github.com/chaitin/MonkeyCode/backend/domain"
+	"github.com/chaitin/MonkeyCode/backend/errcode"
 	"github.com/chaitin/MonkeyCode/backend/middleware"
 	"github.com/chaitin/MonkeyCode/backend/pkg/captcha"
 	"github.com/chaitin/MonkeyCode/backend/pkg/delayqueue"
@@ -56,7 +59,15 @@ func RegisterInfra(i *do.Injector, w ...*web.Web) error {
 		do.ProvideValue(i, w[0])
 	} else {
 		do.Provide(i, func(i *do.Injector) (*web.Web, error) {
-			return web.New(), nil
+			ww := web.New()
+			// 注册本地化文件
+			loc := locale.NewLocalizerWithFile(
+				language.Chinese,
+				errcode.LocalFS,
+				[]string{"locale.zh.toml"},
+			)
+			ww.SetLocale(loc)
+			return ww, nil
 		})
 	}
 

@@ -30,6 +30,9 @@ func RegisterTeam(i *do.Injector) error {
 	do.Provide(i, usecase.NewTeamHostUsecase)
 	do.Provide(i, v1.NewTeamHostHandler)
 
+	// 团队审计日志
+	do.Provide(i, v1.NewTeamAuditHandler)
+
 	// 注册 handler
 	do.Provide(i, v1.NewTeamGroupUserHandler)
 	_, err := do.Invoke[*v1.TeamGroupUserHandler](i)
@@ -39,5 +42,6 @@ func RegisterTeam(i *do.Injector) error {
 	do.MustInvoke[*v1.TeamModelHandler](i)
 	do.MustInvoke[*v1.TeamImageHandler](i)
 	do.MustInvoke[*v1.TeamHostHandler](i)
+	do.MustInvoke[*v1.TeamAuditHandler](i)
 	return nil
 }

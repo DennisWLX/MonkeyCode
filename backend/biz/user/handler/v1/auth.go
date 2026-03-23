@@ -58,6 +58,7 @@ func NewAuthHandler(i *do.Injector) (*AuthHandler, error) {
 	v1.PUT("/passwords/change", web.BindHandler(h.ChangePassword), auth.Check())
 	v1.GET("/status", web.BaseHandler(h.Status), auth.Check())
 	v1.POST("/logout", web.BaseHandler(h.Logout), auth.Auth())
+	v1.GET("/members", web.BaseHandler(h.ListMembers), auth.Auth())
 
 	return h, nil
 }
@@ -264,14 +265,14 @@ func (h *AuthHandler) GetAccountInfo(c *web.Context, req domain.GetAccountInfoRe
 
 // ResetPassword 重置密码接口
 //
-//	@Summary		重置密码
+//	@Summary	重置密码
 //	@Description	重置当前用户的密码
-//	@Tags			【用户】密码管理
-//	@Accept			json
-//	@Produce		json
-//	@Param			req	body		domain.ResetUserPasswordReq	true	"重置密码请求"
-//	@Success		200	{object}	web.Resp{}
-//	@Router			/api/v1/users/passwords/reset [put]
+//	@Tags		【用户】密码管理
+//	@Accept		json
+//	@Produce	json
+//	@Param		req	body		domain.ResetUserPasswordReq	true	"重置密码请求"
+//	@Success	200		{object}	web.Resp{}
+//	@Router		/api/v1/users/passwords/reset [put]
 func (h *AuthHandler) ResetPassword(c *web.Context, req domain.ResetUserPasswordReq) error {
 	// 重置前检查 redis 里的 Key
 	key := fmt.Sprintf("reset_password_token:%s", req.Token)
@@ -314,4 +315,32 @@ func (h *AuthHandler) ResetPassword(c *web.Context, req domain.ResetUserPassword
 	}
 
 	return c.Success(nil)
+}
+
+// ListMembers 获取团队成员列表
+//
+//	@Summary	获取团队成员列表
+//	@Description	获取当前用户所在团队的成员列表
+//	@Tags		【用户】团队管理
+//	@Accept		json
+//	@Produce	json
+//	@Security	MonkeyCodeAIAuth
+//	@Success	200		{object}	web.Resp{data=[]domain.User}	"成功"
+//	@Failure	401		{object}	web.Resp						"未授权"
+//	@Failure	500		{object}	web.Resp						"服务器内部错误"
+//	@Router		/api/v1/users/members [get]
+func (h *AuthHandler) ListMembers(c *web.Context) error {
+	user := middleware.GetUser(c)
+	if user == nil {
+		return errcode.ErrUnauthorized
+	}
+
+	// 获取用户所在团队的成员列表
+	members, err := h.usecase.GetTeamMembers(c.Request().Context(), user.ID)
+	if err != nil {
+		h.logger.ErrorContext(c.Request().Context(), "list team members failed", "error", err)
+		return err
+	}
+
+	return c.Success(members)
 }

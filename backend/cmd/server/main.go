@@ -11,6 +11,7 @@ import (
 
 	"github.com/chaitin/MonkeyCode/backend/biz"
 	"github.com/chaitin/MonkeyCode/backend/config"
+	"github.com/chaitin/MonkeyCode/backend/db"
 	"github.com/chaitin/MonkeyCode/backend/pkg"
 	"github.com/chaitin/MonkeyCode/backend/pkg/logger"
 	"github.com/chaitin/MonkeyCode/backend/pkg/service"
@@ -49,6 +50,13 @@ func main() {
 	// 运行数据库迁移
 	if err := store.MigrateSQL(cfg, l); err != nil {
 		l.Warn("database migration warning", "error", err)
+	}
+
+	// 自动创建表结构
+	dbClient := do.MustInvoke[*db.Client](injector)
+	if err := dbClient.Schema.Create(context.Background()); err != nil {
+		l.Error("failed to create schema", "error", err)
+		os.Exit(1)
 	}
 
 	// 获取 web 实例并启动服务

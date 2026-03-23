@@ -9,6 +9,7 @@ import (
 	"github.com/chaitin/MonkeyCode/backend/biz/project"
 	"github.com/chaitin/MonkeyCode/backend/biz/public"
 	"github.com/chaitin/MonkeyCode/backend/biz/setting"
+	"github.com/chaitin/MonkeyCode/backend/biz/skill"
 	"github.com/chaitin/MonkeyCode/backend/biz/task"
 	"github.com/chaitin/MonkeyCode/backend/biz/team"
 	"github.com/chaitin/MonkeyCode/backend/biz/user"
@@ -39,6 +40,9 @@ func RegisterAll(i *do.Injector) error {
 
 	// 注册 host 模块
 	host.RegisterHost(i)
+
+	// 注册 skill 模块
+	skill.RegisterSkill(i)
 
 	return nil
 }
