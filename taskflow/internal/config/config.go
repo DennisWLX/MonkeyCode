@@ -7,9 +7,11 @@ import (
 )
 
 type Config struct {
-	Server ServerConfig `yaml:"server"`
-	Redis  RedisConfig  `yaml:"redis"`
-	Log    LogConfig    `yaml:"log"`
+	Server  ServerConfig  `yaml:"server"`
+	Redis   RedisConfig   `yaml:"redis"`
+	Log     LogConfig     `yaml:"log"`
+	Backend BackendConfig `yaml:"backend"`
+	Runner  RunnerConfig  `yaml:"runner"`
 }
 
 type ServerConfig struct {
@@ -25,6 +27,15 @@ type RedisConfig struct {
 
 type LogConfig struct {
 	Level string `yaml:"level"`
+}
+
+type BackendConfig struct {
+	Addr string `yaml:"addr"`
+}
+
+type RunnerConfig struct {
+	Token           string `yaml:"token"`
+	HeartbeatTimout int    `yaml:"heartbeat_timeout"`
 }
 
 func Load(path string) (*Config, error) {
@@ -54,5 +65,11 @@ func setDefaults(cfg *Config) {
 	}
 	if cfg.Log.Level == "" {
 		cfg.Log.Level = "info"
+	}
+	if cfg.Backend.Addr == "" {
+		cfg.Backend.Addr = "http://localhost:8888"
+	}
+	if cfg.Runner.HeartbeatTimout == 0 {
+		cfg.Runner.HeartbeatTimout = 60
 	}
 }

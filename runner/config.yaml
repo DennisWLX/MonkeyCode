@@ -1,3 +1,3 @@
-token: "test-runner-token"
+token: ""
 grpc_addr: "localhost:50051"
 log_level: "debug"

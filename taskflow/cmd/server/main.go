@@ -12,6 +12,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
+	"github.com/chaitin/MonkeyCode/taskflow/internal/backend"
 	"github.com/chaitin/MonkeyCode/taskflow/internal/config"
 	"github.com/chaitin/MonkeyCode/taskflow/internal/handler"
 	"github.com/chaitin/MonkeyCode/taskflow/internal/runner"
@@ -28,8 +29,22 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
+	var logLevel slog.Level
+	switch cfg.Log.Level {
+	case "debug":
+		logLevel = slog.LevelDebug
+	case "info":
+		logLevel = slog.LevelInfo
+	case "warn":
+		logLevel = slog.LevelWarn
+	case "error":
+		logLevel = slog.LevelError
+	default:
+		logLevel = slog.LevelInfo
+	}
+
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
+		Level: logLevel,
 	}))
 
 	redisClient := redis.NewClient(&redis.Options{
@@ -45,8 +60,9 @@ func main() {
 
 	redisStore := store.NewRedisStore(redisClient)
 	runnerManager := runner.NewManager()
+	backendClient := backend.NewClient(&cfg.Backend)
 
-	grpcServer := server.NewGRPCServer(redisStore, runnerManager, logger)
+	grpcServer := server.NewGRPCServer(redisStore, runnerManager, backendClient, logger)
 	grpcListener, err := net.Listen("tcp", cfg.Server.GRPCAddr)
 	if err != nil {
 		log.Fatalf("Failed to listen on gRPC address: %v", err)

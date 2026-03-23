@@ -1,5 +1,5 @@
 server:
-  http_addr: ":8888"
+  http_addr: ":8889"
   grpc_addr: ":50051"
 
 redis:
@@ -9,6 +9,9 @@ redis:
 
 log:
   level: "debug"
+
+backend:
+  addr: "http://localhost:8888"
 
 runner:
   token: "test-runner-token"

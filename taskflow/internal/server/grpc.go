@@ -5,8 +5,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/google/uuid"
-
+	"github.com/chaitin/MonkeyCode/taskflow/internal/backend"
 	pb "github.com/chaitin/MonkeyCode/taskflow/pkg/proto"
 	"github.com/chaitin/MonkeyCode/taskflow/internal/runner"
 	"github.com/chaitin/MonkeyCode/taskflow/internal/store"
@@ -14,26 +13,42 @@ import (
 
 type GRPCServer struct {
 	pb.UnimplementedRunnerServiceServer
-	store   *store.RedisStore
-	manager *runner.Manager
-	logger  *slog.Logger
+	store    *store.RedisStore
+	manager  *runner.Manager
+	logger   *slog.Logger
+	backend  *backend.Client
 }
 
-func NewGRPCServer(s *store.RedisStore, m *runner.Manager, logger *slog.Logger) *GRPCServer {
+func NewGRPCServer(s *store.RedisStore, m *runner.Manager, b *backend.Client, logger *slog.Logger) *GRPCServer {
 	return &GRPCServer{
 		store:   s,
 		manager: m,
+		backend: b,
 		logger:  logger,
 	}
 }
 
 func (s *GRPCServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.RegisterResponse, error) {
-	s.logger.Info("runner registering", "hostname", req.Hostname, "ip", req.Ip)
+	s.logger.Info("runner registering", "hostname", req.Hostname, "ip", req.Ip, "token", req.Token)
 
-	runnerID := uuid.New().String()
+	token, err := s.backend.CheckToken(ctx, &backend.CheckTokenReq{
+		Token: req.Token,
+	})
+	if err != nil {
+		s.logger.Error("failed to check token", "error", err)
+		return &pb.RegisterResponse{
+			Success: false,
+			Message: "invalid token",
+		}, nil
+	}
+
+	s.logger.Info("token verified", "user_id", token.User.ID, "kind", token.Kind)
+
+	runnerID := token.Token
 
 	r := &store.Runner{
 		ID:       runnerID,
+		UserID:   token.User.ID,
 		Hostname: req.Hostname,
 		IP:       req.Ip,
 		Status:   "online",
@@ -50,11 +65,36 @@ func (s *GRPCServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb
 		return nil, err
 	}
 
-	if err := s.manager.Register(ctx, runnerID, ""); err != nil {
+	if err := s.store.AddUserRunner(ctx, token.User.ID, runnerID); err != nil {
+		s.logger.Error("failed to add user runner", "error", err)
+	}
+
+	if err := s.manager.Register(ctx, runnerID, token.User.ID); err != nil {
 		s.logger.Error("failed to register runner in manager", "error", err)
 	}
 
-	s.logger.Info("runner registered", "runner_id", runnerID)
+	hostInfo := &backend.HostInfo{
+		ID:         runnerID,
+		UserID:     token.User.ID,
+		Hostname:   req.Hostname,
+		Name:       req.Hostname,
+		Arch:       "amd64",
+		OS:         "linux",
+		Cores:      req.Cores,
+		Memory:     uint64(req.Memory),
+		Disk:       uint64(req.Disk),
+		PublicIP:   req.Ip,
+		InternalIP: req.Ip,
+		CreatedAt:  time.Now().Unix(),
+	}
+
+	if err := s.backend.ReportHostInfo(ctx, hostInfo); err != nil {
+		s.logger.Error("failed to report host info to backend", "error", err)
+	} else {
+		s.logger.Info("host info reported to backend", "runner_id", runnerID)
+	}
+
+	s.logger.Info("runner registered", "runner_id", runnerID, "user_id", token.User.ID)
 
 	return &pb.RegisterResponse{
 		RunnerId: runnerID,
