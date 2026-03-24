@@ -10,8 +10,10 @@ import (
 	"github.com/GoYoko/web"
 	"github.com/samber/do"
 
+	"github.com/chaitin/MonkeyCode/backend"
 	"github.com/chaitin/MonkeyCode/backend/biz"
 	"github.com/chaitin/MonkeyCode/backend/config"
+	"github.com/chaitin/MonkeyCode/backend/db"
 	"github.com/chaitin/MonkeyCode/backend/pkg"
 	"github.com/chaitin/MonkeyCode/backend/pkg/service"
 	"github.com/chaitin/MonkeyCode/backend/pkg/store"
@@ -37,6 +39,9 @@ func main() {
 		os.Exit(1)
 	}
 
+	// 启用公共主机支持（必须在 biz.RegisterAll 之前调用）
+	backend.WithPublicHost()(injector)
+
 	// 注册业务模块
 	if err := biz.RegisterAll(injector); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to register biz: %v\n", err)
@@ -49,6 +54,13 @@ func main() {
 	// 运行数据库迁移
 	if err := store.MigrateSQL(cfg, l); err != nil {
 		l.Warn("database migration warning", "error", err)
+	}
+
+	// 自动创建表结构
+	dbClient := do.MustInvoke[*db.Client](injector)
+	if err := dbClient.Schema.Create(context.Background()); err != nil {
+		l.Error("failed to create schema", "error", err)
+		os.Exit(1)
 	}
 
 	// 获取 web 实例并启动服务

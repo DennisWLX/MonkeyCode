@@ -159,6 +159,14 @@ func (_c *ProjectTaskCreate) SetID(v uuid.UUID) *ProjectTaskCreate {
 	return _c
 }
 
+// SetNillableID sets the "id" field if the given value is not nil.
+func (_c *ProjectTaskCreate) SetNillableID(v *uuid.UUID) *ProjectTaskCreate {
+	if v != nil {
+		_c.SetID(*v)
+	}
+	return _c
+}
+
 // SetTask sets the "task" edge to the Task entity.
 func (_c *ProjectTaskCreate) SetTask(v *Task) *ProjectTaskCreate {
 	return _c.SetTaskID(v.ID)
@@ -227,6 +235,10 @@ func (_c *ProjectTaskCreate) defaults() {
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := projecttask.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
+	}
+	if _, ok := _c.mutation.ID(); !ok {
+		v := projecttask.DefaultID()
+		_c.mutation.SetID(v)
 	}
 }
 

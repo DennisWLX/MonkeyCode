@@ -89,6 +89,14 @@ func (_c *AuditCreate) SetID(v uuid.UUID) *AuditCreate {
 	return _c
 }
 
+// SetNillableID sets the "id" field if the given value is not nil.
+func (_c *AuditCreate) SetNillableID(v *uuid.UUID) *AuditCreate {
+	if v != nil {
+		_c.SetID(*v)
+	}
+	return _c
+}
+
 // SetUser sets the "user" edge to the User entity.
 func (_c *AuditCreate) SetUser(v *User) *AuditCreate {
 	return _c.SetUserID(v.ID)
@@ -132,6 +140,10 @@ func (_c *AuditCreate) defaults() {
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := audit.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
+	}
+	if _, ok := _c.mutation.ID(); !ok {
+		v := audit.DefaultID()
+		_c.mutation.SetID(v)
 	}
 }
 

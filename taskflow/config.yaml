@@ -1,0 +1,18 @@
+server:
+  http_addr: ":8889"
+  grpc_addr: ":50051"
+
+redis:
+  addr: "localhost:6379"
+  password: ""
+  db: 0
+
+log:
+  level: "debug"
+
+backend:
+  addr: "http://localhost:8888"
+
+runner:
+  token: "test-runner-token"
+  heartbeat_timeout: 60

@@ -105,6 +105,14 @@ func (_c *ImageCreate) SetID(v uuid.UUID) *ImageCreate {
 	return _c
 }
 
+// SetNillableID sets the "id" field if the given value is not nil.
+func (_c *ImageCreate) SetNillableID(v *uuid.UUID) *ImageCreate {
+	if v != nil {
+		_c.SetID(*v)
+	}
+	return _c
+}
+
 // SetUser sets the "user" edge to the User entity.
 func (_c *ImageCreate) SetUser(v *User) *ImageCreate {
 	return _c.SetUserID(v.ID)
@@ -251,6 +259,13 @@ func (_c *ImageCreate) defaults() error {
 		v := image.DefaultUpdatedAt()
 		_c.mutation.SetUpdatedAt(v)
 	}
+	if _, ok := _c.mutation.ID(); !ok {
+		if image.DefaultID == nil {
+			return fmt.Errorf("db: uninitialized image.DefaultID (forgotten import db/runtime?)")
+		}
+		v := image.DefaultID()
+		_c.mutation.SetID(v)
+	}
 	return nil
 }
 
@@ -367,6 +382,9 @@ func (_c *ImageCreate) createSpec() (*Image, *sqlgraph.CreateSpec) {
 		createE.defaults()
 		_, specE := createE.createSpec()
 		edge.Target.Fields = specE.Fields
+		if specE.ID.Value != nil {
+			edge.Target.Fields = append(edge.Target.Fields, specE.ID)
+		}
 		_spec.Edges = append(_spec.Edges, edge)
 	}
 	if nodes := _c.mutation.GroupsIDs(); len(nodes) > 0 {
@@ -387,6 +405,9 @@ func (_c *ImageCreate) createSpec() (*Image, *sqlgraph.CreateSpec) {
 		createE.defaults()
 		_, specE := createE.createSpec()
 		edge.Target.Fields = specE.Fields
+		if specE.ID.Value != nil {
+			edge.Target.Fields = append(edge.Target.Fields, specE.ID)
+		}
 		_spec.Edges = append(_spec.Edges, edge)
 	}
 	if nodes := _c.mutation.ProjectTasksIDs(); len(nodes) > 0 {

@@ -58,6 +58,14 @@ func (_c *TeamModelCreate) SetID(v uuid.UUID) *TeamModelCreate {
 	return _c
 }
 
+// SetNillableID sets the "id" field if the given value is not nil.
+func (_c *TeamModelCreate) SetNillableID(v *uuid.UUID) *TeamModelCreate {
+	if v != nil {
+		_c.SetID(*v)
+	}
+	return _c
+}
+
 // SetTeam sets the "team" edge to the Team entity.
 func (_c *TeamModelCreate) SetTeam(v *Team) *TeamModelCreate {
 	return _c.SetTeamID(v.ID)
@@ -106,6 +114,10 @@ func (_c *TeamModelCreate) defaults() {
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := teammodel.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
+	}
+	if _, ok := _c.mutation.ID(); !ok {
+		v := teammodel.DefaultID()
+		_c.mutation.SetID(v)
 	}
 }
 

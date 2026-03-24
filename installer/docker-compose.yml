@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  # ===========================================
+  # Orchestrator - AI 代码编排器
+  # ===========================================
+  orchestrator:
+    image: ghcr.io/chaitin/monkeycode/orchestrator:latest
+    container_name: monkeycode_runner_orchestrator
+    restart: unless-stopped
+    environment:
+      - TOKEN=${TOKEN}
+      - GRPC_HOST=${GRPC_HOST}
+      - GRPC_PORT=${GRPC_PORT}
+      - GRPC_URL=${GRPC_URL}
+      - HOST_ID=${HOST_ID}
+      - HOST_UUID=${HOST_UUID}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - MAX_CORES=${MAX_CORES:-8}
+      - MAX_MEMORY=${MAX_MEMORY:-16384}
+    env_file:
+      - .env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - orchestrator_data:/data
+    networks:
+      - monkeycode_runner_network
+    ports:
+      - "8080:8080"  # Runner HTTP API
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ===========================================
+  # Watchtower - 自动更新容器
+  # ===========================================
+  watchtower:
+    image: ghcr.io/chaitin/monkeycode/watchtower:latest
+    container_name: monkeycode_runner_watchtower
+    restart: unless-stopped
+    environment:
+      - WATCHTOWER_CLEANUP=${WATCHTOWER_CLEANUP:-true}
+      - WATCHTOWER_INCLUDE_STOPPED=${WATCHTOWER_INCLUDE_STOPPED:-false}
+      - WATCHTOWER_POLL_INTERVAL=${WATCHTOWER_POLL_INTERVAL:-3600}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - monkeycode_runner_network
+    command: --interval 3600 --cleanup orchestrator
+
+networks:
+  monkeycode_runner_network:
+    name: monkeycode_runner_network
+    driver: bridge
+
+volumes:
+  orchestrator_data:
+    name: monkeycode_runner_data

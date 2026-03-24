@@ -84,7 +84,7 @@ func (g *GitTaskUsecase) Create(ctx context.Context, req domain.CreateGitTaskReq
 				BaseURL:  m.BaseURL,
 				Model:    m.Model,
 			},
-			Cores:  fmt.Sprintf("%d", g.cfg.Task.Core),
+			Cores:  int32(g.cfg.Task.Core),
 			Memory: g.cfg.Task.Memory,
 		})
 		if err != nil {

@@ -9,6 +9,7 @@ import (
 	"github.com/chaitin/MonkeyCode/backend/biz/project"
 	"github.com/chaitin/MonkeyCode/backend/biz/public"
 	"github.com/chaitin/MonkeyCode/backend/biz/setting"
+	"github.com/chaitin/MonkeyCode/backend/biz/skill"
 	"github.com/chaitin/MonkeyCode/backend/biz/task"
 	"github.com/chaitin/MonkeyCode/backend/biz/team"
 	"github.com/chaitin/MonkeyCode/backend/biz/user"
@@ -27,6 +28,10 @@ func RegisterAll(i *do.Injector) error {
 	}
 
 	// 注册 task 模块的 usecase 和 handler（TaskUsecase 依赖 HostUsecase，需在 host 之后）
+	// 注册 notify 模块（需在 task 模块之前，因为 task 依赖 NotifyChannelRepo）
+	notify.RegisterNotify(i)
+
+	// 注册 task 模块（需在 git 模块之前，因为 webhook handler 依赖 GitTaskUsecase）
 	task.RegisterTask(i)
 
 	// 注册 git 模块

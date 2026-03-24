@@ -139,3 +139,18 @@ func (u *UserUsecase) GetUserByEmail(ctx context.Context, emails []string) ([]*d
 	})
 	return result, nil
 }
+
+// GetTeamMembers implements domain.UserUsecase.
+func (u *UserUsecase) GetTeamMembers(ctx context.Context, userID uuid.UUID) ([]*domain.User, error) {
+	users, err := u.repo.GetTeamMembers(ctx, userID)
+	if err != nil && !db.IsNotFound(err) {
+		return nil, errcode.ErrDatabaseQuery.Wrap(err)
+	}
+
+	result := make([]*domain.User, 0, len(users))
+	cvt.Iter(users, func(_ int, user *db.User) error {
+		result = append(result, cvt.From(user, &domain.User{}))
+		return nil
+	})
+	return result, nil
+}

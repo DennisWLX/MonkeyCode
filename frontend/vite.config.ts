@@ -40,7 +40,7 @@ export default defineConfig(({ mode }) => {
       allowedHosts: ['.monkeycode-ai.online'],
       proxy: {
         '/api': {
-          target: env.TARGET,
+          target: 'http://localhost:8888',
           changeOrigin: true,
           ws: true,
           ...(Object.keys(proxyHeaders).length > 0

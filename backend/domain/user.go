@@ -19,6 +19,7 @@ type UserUsecase interface {
 	ChangePassword(ctx context.Context, userID uuid.UUID, req *ChangePasswordReq, isReset bool) error
 	SendResetPasswordEmail(ctx context.Context, req *ResetUserPasswordEmailReq) error
 	GetUserByEmail(ctx context.Context, emails []string) ([]*User, error)
+	GetTeamMembers(ctx context.Context, userID uuid.UUID) ([]*User, error)
 }
 
 type UserRepo interface {
@@ -28,6 +29,7 @@ type UserRepo interface {
 	PasswordLogin(ctx context.Context, req *TeamLoginReq) (*db.User, error)
 	ChangePassword(ctx context.Context, uid uuid.UUID, currentPassword, newPassword string, isReset bool) error
 	GetUserByEmail(ctx context.Context, emails []string) ([]*db.User, error)
+	GetTeamMembers(ctx context.Context, userID uuid.UUID) ([]*db.User, error)
 }
 
 type User struct {

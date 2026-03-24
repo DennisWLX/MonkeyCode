@@ -183,6 +183,14 @@ func (_c *ProjectCreate) SetID(v uuid.UUID) *ProjectCreate {
 	return _c
 }
 
+// SetNillableID sets the "id" field if the given value is not nil.
+func (_c *ProjectCreate) SetNillableID(v *uuid.UUID) *ProjectCreate {
+	if v != nil {
+		_c.SetID(*v)
+	}
+	return _c
+}
+
 // SetUser sets the "user" edge to the User entity.
 func (_c *ProjectCreate) SetUser(v *User) *ProjectCreate {
 	return _c.SetUserID(v.ID)
@@ -323,6 +331,13 @@ func (_c *ProjectCreate) defaults() error {
 		}
 		v := project.DefaultUpdatedAt()
 		_c.mutation.SetUpdatedAt(v)
+	}
+	if _, ok := _c.mutation.ID(); !ok {
+		if project.DefaultID == nil {
+			return fmt.Errorf("db: uninitialized project.DefaultID (forgotten import db/runtime?)")
+		}
+		v := project.DefaultID()
+		_c.mutation.SetID(v)
 	}
 	return nil
 }
