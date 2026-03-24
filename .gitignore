@@ -12,3 +12,4 @@ logs
 # Local build artifacts
 monkeycode-ai/
 .pnpm-store/
+bin/
