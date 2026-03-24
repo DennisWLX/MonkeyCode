@@ -42,8 +42,6 @@ func NewHostHandler(i *do.Injector) (*HostHandler, error) {
 		h.pubhost = pubhost
 	}
 
-	w.GET("/internal/vm/fire", web.BindHandler(h.fireExpiredVM))
-
 	g := w.Group("/api/v1/users/hosts")
 
 	g.GET("/install", web.BindHandler(h.Install))
@@ -65,17 +63,6 @@ func NewHostHandler(i *do.Injector) (*HostHandler, error) {
 	g.POST("/:host_id/vms/:id/ports", web.BindHandler(h.ApplyPort))
 	g.DELETE("/:host_id/vms/:id/ports/:port", web.BindHandler(h.RecyclePort))
 	return h, nil
-}
-
-func (h *HostHandler) fireExpiredVM(c *web.Context, req domain.FireExpiredVMReq) error {
-	ids, err := h.usecase.FireExpiredVM(c.Request().Context(), req.Fire)
-	if err != nil {
-		return err
-	}
-	return c.Success(map[string]any{
-		"total": len(ids),
-		"ids":   ids,
-	})
 }
 
 // GetInstallCommand 获取绑定宿主机命令

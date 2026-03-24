@@ -28,10 +28,10 @@ type Config struct {
 	Session Session `mapstructure:"session"`
 	SMTP    SMTP    `mapstructure:"smtp"`
 
-	RootPath   string         `mapstructure:"root_path"`
-	Logger     *logger.Config `mapstructure:"logger"`
-	AdminToken string         `mapstructure:"admin_token"`
-	Proxies    []string       `mapstructure:"proxies"`
+	RootPath   string        `mapstructure:"root_path"`
+	Logger     logger.Config `mapstructure:"logger"`
+	AdminToken string        `mapstructure:"admin_token"`
+	Proxies    []string      `mapstructure:"proxies"`
 
 	TaskFlow    TaskFlow    `mapstructure:"taskflow"`
 	PublicHost  PublicHost  `mapstructure:"public_host"`
@@ -40,6 +40,7 @@ type Config struct {
 	Loki        Loki        `mapstructure:"loki"`
 	LLM         LLM         `mapstructure:"llm"`
 	Notify      Notify      `mapstructure:"notify"`
+	VMIdle      VMIdle      `mapstructure:"vm_idle"`
 
 	// Context7 API 配置
 	Context7ApiKey string `mapstructure:"context7_api_key"`
@@ -49,6 +50,14 @@ type Config struct {
 	Gitlab GitlabConfig `mapstructure:"gitlab"`
 	Gitea  GiteaConfig  `mapstructure:"gitea"`
 	Gitee  GiteeConfig  `mapstructure:"gitee"`
+
+	InitTeam InitTeam `mapstructure:"init_team"`
+}
+
+type InitTeam struct {
+	Email    string `mapstructure:"email"`
+	Password string `mapstructure:"password"`
+	Name     string `mapstructure:"name"`
 }
 
 type TaskFlow struct {
@@ -101,16 +110,22 @@ type Notify struct {
 	VMExpireWarningMinutes int `mapstructure:"vm_expire_warning_minutes"` // VM 过期预警时间（分钟）
 }
 
+type VMIdle struct {
+	SleepSeconds   int `mapstructure:"sleep_seconds"`   // VM 空闲休眠时间（秒）
+	RecycleSeconds int `mapstructure:"recycle_seconds"` // VM 空闲回收时间（秒）
+}
+
 type Session struct {
 	ExpireDay int `mapstructure:"expire_day"`
 }
 
 type SMTP struct {
 	Host     string `mapstructure:"host"`
-	Port     int    `mapstructure:"port"`
+	Port     string `mapstructure:"port"`
 	Username string `mapstructure:"username"`
 	Password string `mapstructure:"password"`
 	From     string `mapstructure:"from"`
+	TLS      bool   `mapstructure:"tls"`
 }
 
 type Database struct {
@@ -124,25 +139,42 @@ type Database struct {
 func Init(dir string) (*Config, error) {
 	v := viper.New()
 	v.AutomaticEnv()
+	v.SetEnvPrefix("MCAI")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
-	v.SetDefault("debug", true)
+	v.SetDefault("debug", false)
 	v.SetDefault("server.addr", ":8888")
 	v.SetDefault("server.base_url", "http://localhost:8888")
+	v.SetDefault("loki.addr", "http://monkeycode-ai-loki:3100")
+	v.SetDefault("database.master", "")
+	v.SetDefault("database.slave", "")
 	v.SetDefault("database.max_open_conns", 100)
 	v.SetDefault("database.max_idle_conns", 50)
 	v.SetDefault("database.conn_max_lifetime", 30)
 	v.SetDefault("root_path", "/app")
 	v.SetDefault("logger.level", "info")
 	v.SetDefault("session.expire_day", 1)
+	v.SetDefault("smtp.host", "")
 	v.SetDefault("smtp.port", 587)
+	v.SetDefault("smtp.username", "")
+	v.SetDefault("smtp.password", "")
+	v.SetDefault("smtp.from", "")
+	v.SetDefault("smtp.tls", false)
+	v.SetDefault("redis.host", "")
+	v.SetDefault("redis.port", 6379)
+	v.SetDefault("redis.pass", "")
+	v.SetDefault("redis.db", 0)
+	v.SetDefault("vm_idle.sleep_seconds", 600)
+	v.SetDefault("vm_idle.recycle_seconds", 604800)
+	v.SetDefault("init_team.email", "")
+	v.SetDefault("init_team.name", "")
+	v.SetDefault("init_team.password", "")
+	v.SetDefault("taskflow.grpc_url", "")
 
 	v.SetConfigType("yaml")
 	v.AddConfigPath(dir)
 	v.SetConfigName("config")
-	if err := v.ReadInConfig(); err != nil {
-		return nil, err
-	}
+	v.ReadInConfig()
 
 	c := Config{}
 	if err := v.Unmarshal(&c); err != nil {

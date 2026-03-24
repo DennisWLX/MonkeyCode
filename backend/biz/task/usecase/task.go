@@ -3,6 +3,7 @@ package usecase
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -24,7 +25,6 @@ import (
 	"github.com/chaitin/MonkeyCode/backend/ent/types"
 	"github.com/chaitin/MonkeyCode/backend/errcode"
 	"github.com/chaitin/MonkeyCode/backend/pkg/cvt"
-	"github.com/chaitin/MonkeyCode/backend/pkg/delayqueue"
 	"github.com/chaitin/MonkeyCode/backend/pkg/entx"
 	"github.com/chaitin/MonkeyCode/backend/pkg/lifecycle"
 	"github.com/chaitin/MonkeyCode/backend/pkg/loki"
@@ -41,7 +41,6 @@ type TaskUsecase struct {
 	logger           *slog.Logger
 	taskflow         taskflow.Clienter
 	loki             *loki.Client
-	vmexpireQueue    *delayqueue.VMExpireQueue
 	redis            *redis.Client
 	notifyDispatcher *dispatcher.Dispatcher
 	taskHook         domain.TaskHook
@@ -58,7 +57,6 @@ func NewTaskUsecase(i *do.Injector) (domain.TaskUsecase, error) {
 		logger:           do.MustInvoke[*slog.Logger](i).With("module", "usecase.TaskUsecase"),
 		taskflow:         do.MustInvoke[taskflow.Clienter](i),
 		loki:             do.MustInvoke[*loki.Client](i),
-		vmexpireQueue:    do.MustInvoke[*delayqueue.VMExpireQueue](i),
 		redis:            do.MustInvoke[*redis.Client](i),
 		notifyDispatcher: do.MustInvoke[*dispatcher.Dispatcher](i),
 		taskLifecycle:    do.MustInvoke[*lifecycle.Manager[uuid.UUID, consts.TaskStatus, lifecycle.TaskMetadata]](i),
@@ -175,8 +173,18 @@ func (a *TaskUsecase) List(ctx context.Context, user *domain.User, req domain.Ta
 
 // Stop implements domain.TaskUsecase.
 func (a *TaskUsecase) Stop(ctx context.Context, user *domain.User, id uuid.UUID) error {
+	t, err := a.repo.Info(ctx, user, id)
+	if err != nil {
+		return err
+	}
+	tk := cvt.From(t, &domain.Task{})
 	return a.repo.Stop(ctx, user, id, func(t *db.Task) error {
 		return a.taskflow.TaskManager().Stop(ctx, taskflow.TaskReq{
+			VirtualMachine: &taskflow.VirtualMachine{
+				ID:            tk.VirtualMachine.ID,
+				HostID:        tk.VirtualMachine.Host.ID,
+				EnvironmentID: tk.VirtualMachine.EnvironmentID,
+			},
 			Task: &taskflow.Task{
 				ID: id,
 			},
@@ -193,7 +201,11 @@ func (a *TaskUsecase) Cancel(ctx context.Context, user *domain.User, id uuid.UUI
 	tk := cvt.From(t, &domain.Task{})
 
 	if err := a.taskflow.TaskManager().Cancel(ctx, taskflow.TaskReq{
-		VirtualMachine: &taskflow.VirtualMachine{ID: tk.VirtualMachine.ID},
+		VirtualMachine: &taskflow.VirtualMachine{
+			ID:            tk.VirtualMachine.ID,
+			HostID:        tk.VirtualMachine.Host.ID,
+			EnvironmentID: tk.VirtualMachine.EnvironmentID,
+		},
 		Task: &taskflow.Task{
 			ID: id,
 		},
@@ -211,9 +223,12 @@ func (a *TaskUsecase) Continue(ctx context.Context, user *domain.User, id uuid.U
 		return err
 	}
 	tk := cvt.From(t, &domain.Task{})
-
 	if err := a.taskflow.TaskManager().Continue(ctx, taskflow.TaskReq{
-		VirtualMachine: &taskflow.VirtualMachine{ID: tk.VirtualMachine.ID},
+		VirtualMachine: &taskflow.VirtualMachine{
+			ID:            tk.VirtualMachine.ID,
+			HostID:        tk.VirtualMachine.Host.ID,
+			EnvironmentID: tk.VirtualMachine.EnvironmentID,
+		},
 		Task: &taskflow.Task{
 			ID:   id,
 			Text: content,
@@ -303,17 +318,6 @@ func (a *TaskUsecase) Create(ctx context.Context, user *domain.User, req domain.
 			return nil, fmt.Errorf("vm is nil")
 		}
 
-		if req.Resource.Life > 0 {
-			if _, err := a.vmexpireQueue.Enqueue(ctx, consts.VM_EXPIRE_QUEUE_KEY, &domain.VmExpireInfo{
-				UID:    user.ID,
-				VmID:   vm.ID,
-				HostID: req.HostID,
-				EnvID:  vm.EnvironmentID,
-			}, time.Now().Add(time.Duration(req.Resource.Life)*time.Second), vm.ID); err != nil {
-				a.logger.With("error", err, "vm", vm).ErrorContext(ctx, "failed to enqueue countdown vm")
-			}
-		}
-
 		mcps := []taskflow.McpServerConfig{
 			{
 				Type: "http",
@@ -365,8 +369,12 @@ func (a *TaskUsecase) Create(ctx context.Context, user *domain.User, req domain.
 			Configs:    configs,
 			McpConfigs: mcps,
 		}
+		b, err := json.Marshal(createTaskReq)
+		if err != nil {
+			return vm, err
+		}
 		reqKey := fmt.Sprintf("task:create_req:%s", t.ID.String())
-		if err := a.redis.Set(ctx, reqKey, createTaskReq, 10*time.Minute).Err(); err != nil {
+		if err := a.redis.Set(ctx, reqKey, string(b), 10*time.Minute).Err(); err != nil {
 			a.logger.WarnContext(ctx, "failed to store CreateTaskReq in Redis", "error", err)
 		}
 

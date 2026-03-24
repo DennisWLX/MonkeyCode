@@ -1,0 +1,285 @@
+# 打 tag（如 v1.2.3）后自动构建 Windows / macOS 桌面与 Android APK，并发布到 GitHub Release。
+# 手动运行 workflow 仅上传 Actions Artifact，不创建 Release（便于试打）。
+# Android 产物为 release APK，需在仓库 Secrets 配置签名密钥：
+#   ANDROID_KEYSTORE_BASE64 / ANDROID_KEY_ALIAS / ANDROID_KEY_PASSWORD / ANDROID_STORE_PASSWORD
+
+name: Desktop & Android Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+# 仅写 contents 会把其余权限置为 none，会导致 download-artifact 找不到同 run 上传的产物
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: electron-release-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "20"
+  CSC_IDENTITY_AUTO_DISCOVERY: false
+
+jobs:
+  electron-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: desktop/pnpm-lock.yaml
+
+      - name: Cache Electron binary
+        uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\electron\Cache
+          key: electron-win-${{ hashFiles('desktop/package.json') }}
+
+      - name: Cache electron-builder tools
+        uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\electron-builder\Cache
+          key: electron-builder-win-${{ hashFiles('desktop/package.json') }}
+
+      - name: Set package.json version
+        shell: bash
+        working-directory: desktop
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            V="${GITHUB_REF_NAME#v}"
+          else
+            V="0.0.0-ci.${{ github.run_number }}"
+          fi
+          # electron-builder 要求严格 semver（至少 major.minor.patch 三段）
+          if [[ "$V" =~ ^[0-9]+\.[0-9]+$ ]]; then
+            V="${V}.0"
+          fi
+          node -e "const fs=require('fs');const p='package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version=process.argv[1];fs.writeFileSync(p,JSON.stringify(j,null,2)+'\n');" "$V"
+
+      # windows-latest 默认 run 用 pwsh；pnpm/electron-builder 在 Git Bash 下 cwd 更可靠
+      - name: Install dependencies
+        working-directory: desktop
+        shell: bash
+        run: pnpm install --frozen-lockfile
+
+      # 用 bash + pnpm exec，避免 pwsh 下子进程 cwd/退出码异常；ci-win.json 显式 directories.output
+      - name: Build Windows (portable + NSIS)
+        working-directory: desktop
+        shell: bash
+        run: |
+          set -euxo pipefail
+          pwd
+          test -f package.json
+          test -f electron/main.cjs
+          pnpm exec electron-builder --win portable --x64 --publish never -c electron-builder.ci-win.json
+          if [[ ! -d release ]]; then
+            echo "electron-builder 已结束但 ./release 不存在，当前目录："
+            ls -la
+            exit 1
+          fi
+          ls -laR release
+
+      - name: Rename Windows artifact
+        shell: bash
+        run: cp "$(ls desktop/release/*.exe | head -1)" desktop/release/MonkeyCode-windows-x86.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: electron-windows-x64
+          path: desktop/release/MonkeyCode-windows-x86.exe
+          if-no-files-found: error
+
+  electron-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: desktop/pnpm-lock.yaml
+
+      - name: Cache Electron binary
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/electron
+          key: electron-mac-${{ hashFiles('desktop/package.json') }}
+
+      - name: Cache electron-builder tools
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/electron-builder
+          key: electron-builder-mac-${{ hashFiles('desktop/package.json') }}
+
+      - name: Set package.json version
+        working-directory: desktop
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            V="${GITHUB_REF_NAME#v}"
+          else
+            V="0.0.0-ci.${{ github.run_number }}"
+          fi
+          if [[ "$V" =~ ^[0-9]+\.[0-9]+$ ]]; then
+            V="${V}.0"
+          fi
+          node -e "const fs=require('fs');const p='package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version=process.argv[1];fs.writeFileSync(p,JSON.stringify(j,null,2)+'\n');" "$V"
+
+      - name: Install dependencies
+        working-directory: desktop
+        run: pnpm install --frozen-lockfile
+
+      # 目标格式（dmg / zip）取自 package.json 的 build.mac.target
+      - name: Build macOS (arm64 + x64)
+        working-directory: desktop
+        run: |
+          set -euo pipefail
+          pwd
+          pnpm run electron:ci:mac
+          test -d release || (echo "missing desktop/release"; ls -la; exit 1)
+          ls -laR release
+
+      - name: Rename macOS artifacts
+        run: |
+          ARM64=$(ls desktop/release/*arm64*.dmg 2>/dev/null | head -1)
+          X64=$(ls desktop/release/*.dmg | grep -v arm64 | head -1)
+          [ -n "$ARM64" ] && cp "$ARM64" desktop/release/MonkeyCode-macos-arm64.dmg
+          [ -n "$X64" ]   && cp "$X64"   desktop/release/MonkeyCode-macos-x86.dmg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: electron-macos-universal
+          path: |
+            desktop/release/MonkeyCode-macos-arm64.dmg
+            desktop/release/MonkeyCode-macos-x86.dmg
+          if-no-files-found: error
+
+  capacitor-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: |
+            frontend/pnpm-lock.yaml
+            mobile/pnpm-lock.yaml
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "21"
+
+      - name: Set versions (tag / CI)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            V="${GITHUB_REF_NAME#v}"
+          else
+            V="0.0.0-ci.${{ github.run_number }}"
+          fi
+          if [[ "$V" =~ ^[0-9]+\.[0-9]+$ ]]; then
+            V="${V}.0"
+          fi
+          CODE=${{ github.run_number }}
+          node -e "const fs=require('fs');const p='mobile/package.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version=process.argv[1];fs.writeFileSync(p,JSON.stringify(j,null,2)+'\n');" "$V"
+          sed -i 's/versionCode [0-9][0-9]*/versionCode '"$CODE"'/' mobile/android/app/build.gradle
+          sed -i 's/versionName ".*"/versionName "'"$V"'"/' mobile/android/app/build.gradle
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Install mobile deps
+        working-directory: mobile
+        run: pnpm install --frozen-lockfile
+
+      - name: Build web + Capacitor sync
+        run: |
+          set -euxo pipefail
+          (cd frontend && ELECTRON=true pnpm run build)
+          (cd mobile && pnpm exec cap sync)
+
+      - name: Build Android APK (release)
+        working-directory: mobile/android
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/release.jks
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euxo pipefail
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$ANDROID_KEYSTORE_PATH"
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace -Dorg.gradle.jvmargs=-Xmx4096m
+
+      - name: Stage APK for artifact / release
+        shell: bash
+        run: |
+          mkdir -p mobile/release-apk
+          cp mobile/android/app/build/outputs/apk/release/app-release.apk mobile/release-apk/MonkeyCode-android-arm64.apk
+          ls -lh mobile/release-apk/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: capacitor-android-apk
+          path: mobile/release-apk/*.apk
+          if-no-files-found: error
+
+  publish-release:
+    needs: [electron-windows, electron-macos, capacitor-android]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: electron-windows-x64
+          path: release-assets/windows
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: electron-macos-universal
+          path: release-assets/macos
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: capacitor-android-apk
+          path: release-assets/android
+
+      - name: List release files
+        run: find release-assets -type f -exec ls -lh {} \;
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: MonkeyCode ${{ github.ref_name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: false
+          files: |
+            release-assets/windows/*
+            release-assets/macos/*
+            release-assets/android/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

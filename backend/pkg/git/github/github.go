@@ -6,21 +6,26 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/google/go-github/v74/github"
 	"golang.org/x/oauth2"
+
+	domainpkg "github.com/chaitin/MonkeyCode/backend/domain"
 )
 
 // Github GitHub 客户端（PAT 模式）
 type Github struct {
-	logger *slog.Logger
+	logger  *slog.Logger
+	baseURL string
 }
 
 // NewGithub 创建 GitHub 客户端
 func NewGithub(logger *slog.Logger) *Github {
 	return &Github{
-		logger: logger.With("module", "github"),
+		logger:  logger.With("module", "github"),
+		baseURL: "https://github.com",
 	}
 }
 
@@ -138,20 +143,20 @@ func (g *Github) GetRepoDescription(ctx context.Context, token, owner, repo stri
 }
 
 // GetAuthorizedRepositories 获取 PAT 可访问的仓库列表
-func (g *Github) GetAuthorizedRepositories(ctx context.Context, token string) ([]AuthRepository, error) {
+func (g *Github) GetAuthorizedRepositories(ctx context.Context, token string) ([]domainpkg.AuthRepository, error) {
 	client := newClientWithToken(ctx, token)
 	opts := &github.RepositoryListByAuthenticatedUserOptions{
 		ListOptions: github.ListOptions{PerPage: 100},
 		Sort:        "updated",
 	}
-	var all []AuthRepository
+	var all []domainpkg.AuthRepository
 	for {
 		repos, resp, err := client.Repositories.ListByAuthenticatedUser(ctx, opts)
 		if err != nil {
 			return nil, fmt.Errorf("list repos: %w", err)
 		}
 		for _, r := range repos {
-			all = append(all, AuthRepository{
+			all = append(all, domainpkg.AuthRepository{
 				FullName:    r.GetFullName(),
 				URL:         r.GetCloneURL(),
 				Description: r.GetDescription(),
@@ -163,13 +168,6 @@ func (g *Github) GetAuthorizedRepositories(ctx context.Context, token string) ([
 		opts.Page = resp.NextPage
 	}
 	return all, nil
-}
-
-// AuthRepository 授权仓库信息
-type AuthRepository struct {
-	FullName    string `json:"full_name"`
-	URL         string `json:"url"`
-	Description string `json:"description"`
 }
 
 // DeleteWebhookByURL 根据 webhook URL 精确匹配删除 GitHub 仓库上的 webhook
@@ -254,10 +252,5 @@ func isBinaryContent(content []byte) bool {
 }
 
 func containsNull(b []byte) bool {
-	for _, c := range b {
-		if c == 0 {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(b, 0)
 }

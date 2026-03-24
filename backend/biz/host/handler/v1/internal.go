@@ -33,6 +33,7 @@ type InternalHostHandler struct {
 	cache         *cache.Cache
 	hook          domain.InternalHook // 可选，由内部项目通过 WithInternalHook 注入
 	taskLifecycle *lifecycle.Manager[uuid.UUID, consts.TaskStatus, lifecycle.TaskMetadata]
+	hostUsecase   domain.HostUsecase
 }
 
 func NewInternalHostHandler(i *do.Injector) (*InternalHostHandler, error) {
@@ -45,6 +46,7 @@ func NewInternalHostHandler(i *do.Injector) (*InternalHostHandler, error) {
 		redis:         do.MustInvoke[*redis.Client](i),
 		cache:         cache.New(15*time.Minute, 10*time.Minute),
 		taskLifecycle: do.MustInvoke[*lifecycle.Manager[uuid.UUID, consts.TaskStatus, lifecycle.TaskMetadata]](i),
+		hostUsecase:   do.MustInvoke[domain.HostUsecase](i),
 	}
 
 	// 可选注入 InternalHook
@@ -62,6 +64,7 @@ func NewInternalHostHandler(i *do.Injector) (*InternalHostHandler, error) {
 	g.POST("/coding-config", web.BindHandler(h.GetCodingConfig))
 	g.POST("/git-credential", web.BindHandler(h.GitCredential))
 	g.GET("/vm/list", web.BaseHandler(h.VMList))
+	g.POST("/vm/activity", web.BindHandler(h.VMActivity))
 
 	return h, nil
 }
@@ -227,8 +230,8 @@ return nil
 
 	// 通过 hook 获取关联的 TaskID（内部项目注入时生效）
 	taskID := uuid.Nil
-	if h.hook != nil {
-		taskID = h.hook.OnAgentAuth(ctx, vm.ID)
+	if len(vm.Edges.Tasks) > 0 {
+		taskID = vm.Edges.Tasks[0].ID
 	}
 
 	return &taskflow.Token{
@@ -344,6 +347,15 @@ func (h *InternalHostHandler) VmReady(c *web.Context, req taskflow.VirtualMachin
 				h.logger.With("task", t, "error", err).ErrorContext(c.Request().Context(), "failed to transition task to processing")
 			}
 		}
+
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			if err := h.hostUsecase.RefreshIdleTimers(ctx, vm.ID); err != nil {
+				h.logger.With("error", err).ErrorContext(ctx, "failed to refresh idel timers")
+			}
+		}()
+
 	}
 
 	return c.Success(nil)
@@ -408,4 +420,22 @@ func (h *InternalHostHandler) GitCredential(c *web.Context, req taskflow.GitCred
 		return c.Success(taskflow.GitCredentialResponse{Error: &errMsg})
 	}
 	return c.Success(resp)
+}
+
+// VMActivityReq VM 活动上报请求
+type VMActivityReq struct {
+	VMID         string `json:"vm_id"`
+	LastActiveAt int64  `json:"last_active_at"`
+}
+
+// VMActivity VM 活动回调，用于刷新空闲计时器
+func (h *InternalHostHandler) VMActivity(c *web.Context, req VMActivityReq) error {
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		if err := h.hostUsecase.RefreshIdleTimers(ctx, req.VMID); err != nil {
+			h.logger.With("error", err).ErrorContext(ctx, "failed to refresh idel timers")
+		}
+	}()
+	return c.Success(nil)
 }
