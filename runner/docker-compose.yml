@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  # ===========================================
+  # Runner - AI 代码执行节点
+  # ===========================================
+  runner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ghcr.io/chaitin/monkeycode/runner:latest
+    container_name: monkeycode_runner
+    restart: unless-stopped
+    environment:
+      - TOKEN=${TOKEN:-}
+      - GRPC_URL=${GRPC_URL:-localhost:50051}
+      - GRPC_HOST=${GRPC_HOST:-localhost}
+      - GRPC_PORT=${GRPC_PORT:-50051}
+    volumes:
+      # Docker socket - 允许 runner 管理 Docker 容器
+      - /var/run/docker.sock:/var/run/docker.sock
+      # 数据持久化目录
+      - ${HOST_STORAGE_DIR:-./data}:/app/data
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '8'
+          memory: 16G
+        reservations:
+          cpus: '2'
+          memory: 4G
+    networks:
+      - monkeycode_network
+
+networks:
+  monkeycode_network:
+    name: monkeycode_network
+    driver: bridge

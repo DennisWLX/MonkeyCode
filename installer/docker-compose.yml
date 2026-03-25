@@ -14,42 +14,24 @@ services:
       - GRPC_PORT=${GRPC_PORT}
       - GRPC_URL=${GRPC_URL}
       - HOST_ID=${HOST_ID}
-      - HOST_UUID=${HOST_UUID}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - MAX_CORES=${MAX_CORES:-8}
       - MAX_MEMORY=${MAX_MEMORY:-16384}
-    env_file:
-      - .env
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - orchestrator_data:/data
     networks:
       - monkeycode_runner_network
     ports:
-      - "8080:8080"  # Runner HTTP API
+      - "8080:8080"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
-
-  # ===========================================
-  # Watchtower - 自动更新容器
-  # ===========================================
-  watchtower:
-    image: ghcr.io/chaitin/monkeycode/watchtower:latest
-    container_name: monkeycode_runner_watchtower
-    restart: unless-stopped
-    environment:
-      - WATCHTOWER_CLEANUP=${WATCHTOWER_CLEANUP:-true}
-      - WATCHTOWER_INCLUDE_STOPPED=${WATCHTOWER_INCLUDE_STOPPED:-false}
-      - WATCHTOWER_POLL_INTERVAL=${WATCHTOWER_POLL_INTERVAL:-3600}
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    networks:
-      - monkeycode_runner_network
-    command: --interval 3600 --cleanup orchestrator
 
 networks:
   monkeycode_runner_network:
