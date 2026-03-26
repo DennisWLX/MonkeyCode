@@ -16,7 +16,6 @@ import (
 
 // RegisterAll 注册所有 biz 模块
 func RegisterAll(i *do.Injector) error {
-	notify.RegisterNotify(i)
 	public.RegisterPublic(i)
 	user.RegisterUser(i)
 	setting.RegisterSetting(i)
@@ -26,7 +25,6 @@ func RegisterAll(i *do.Injector) error {
 		return err
 	}
 
-	// 注册 task 模块的 usecase 和 handler（TaskUsecase 依赖 HostUsecase，需在 host 之后）
 	// 注册 notify 模块（需在 task 模块之前，因为 task 依赖 NotifyChannelRepo）
 	notify.RegisterNotify(i)
 
