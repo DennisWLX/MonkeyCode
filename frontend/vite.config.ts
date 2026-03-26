@@ -37,7 +37,7 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       port: devPort,
-      allowedHosts: ['.monkeycode-ai.online'],
+      allowedHosts: ['.monkeycode-ai.online', '.ngrok-free.dev'],
       proxy: {
         '/api': {
           target: 'http://localhost:8888',

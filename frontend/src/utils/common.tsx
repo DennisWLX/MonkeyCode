@@ -15,9 +15,11 @@ import dayjs from "dayjs"
 /** GitHub App 安装地址：https://monkeycode-ai.com 用正式环境，其他域名用开发环境 */
 export function getGithubAppInstallUrl(): string {
   if (typeof window !== "undefined" && window.location.origin === "https://monkeycode-ai.com") {
-    return "https://github.com/apps/monkeycode-ai/installations/new"
+    // return "https://github.com/apps/monkeycode-ai/installations/new"
+    return "https://github.com/apps/dennis-code-dev/installations/new"
   }
-  return "https://github.com/apps/mcai-dev-nb/installations/new"
+  // return "https://github.com/apps/mcai-dev-nb/installations/new"
+  return "https://github.com/apps/dennis-code-dev/installations/new"
 }
 
 export function getHostStatusBadge(status?: string) {
