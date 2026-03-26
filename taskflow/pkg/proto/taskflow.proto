@@ -15,6 +15,9 @@ service RunnerService {
     rpc StopTask(StopTaskRequest) returns (StopTaskResponse);
     rpc TerminalStream(stream TerminalData) returns (stream TerminalData);
     rpc ReportStream(ReportRequest) returns (stream ReportEntry);
+    
+    // 双向流通信
+    rpc CommandStream(stream RunnerMessage) returns (stream TaskflowCommand);
 }
 
 message RegisterRequest {
@@ -141,4 +144,73 @@ message ReportEntry {
     string source = 2;
     int64 timestamp = 3;
     bytes data = 4;
+}
+
+// Runner 发送给 Taskflow 的消息
+message RunnerMessage {
+    oneof message {
+        RunnerReady ready = 1;
+        CommandResult result = 2;
+        HeartbeatMessage heartbeat = 3;
+    }
+}
+
+message RunnerReady {
+    string runner_id = 1;
+}
+
+message CommandResult {
+    string command_id = 1;
+    bool success = 2;
+    string message = 3;
+    map<string, string> data = 4;
+}
+
+message HeartbeatMessage {
+    string runner_id = 1;
+    int64 timestamp = 2;
+    int32 running_vms = 3;
+    int32 running_tasks = 4;
+}
+
+// Taskflow 发送给 Runner 的命令
+message TaskflowCommand {
+    string command_id = 1;
+    oneof command {
+        CreateVMCommand create_vm = 2;
+        DeleteVMCommand delete_vm = 3;
+        CreateTaskCommand create_task = 4;
+        StopTaskCommand stop_task = 5;
+    }
+}
+
+message CreateVMCommand {
+    string vm_id = 1;
+    string image_url = 2;
+    string git_url = 3;
+    string git_token = 4;
+    int32 cores = 5;
+    int64 memory = 6;
+    map<string, string> env_vars = 7;
+    int64 ttl_seconds = 8;
+}
+
+message DeleteVMCommand {
+    string vm_id = 1;
+    string container_id = 2;
+}
+
+message CreateTaskCommand {
+    string task_id = 1;
+    string vm_id = 2;
+    string container_id = 3;
+    string text = 4;
+    string model = 5;
+    string api_key = 6;
+    string base_url = 7;
+    map<string, string> env_vars = 8;
+}
+
+message StopTaskCommand {
+    string task_id = 1;
 }
