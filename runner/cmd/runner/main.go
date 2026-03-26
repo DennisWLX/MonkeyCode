@@ -67,7 +67,13 @@ func main() {
 
 	logger.Info("runner registered", "runner_id", runnerID, "hostname", hostname, "ip", ip)
 
-	go startHeartbeat(ctx, grpcClient, runnerID, vmMgr, taskExecutor, logger)
+	streamClient := grpcclient.NewStreamClient(grpcClient.Client(), vmMgr, taskMgr, logger)
+	if err := streamClient.Connect(ctx, runnerID); err != nil {
+		logger.Error("failed to connect stream", "error", err)
+		os.Exit(1)
+	}
+
+	go startStreamHeartbeat(ctx, streamClient, runnerID, vmMgr, taskExecutor, logger)
 	go startHTTPServer(ctx, vmMgr, termMgr, taskMgr, taskExecutor, forwardMgr, logger)
 
 	sigCh := make(chan os.Signal, 1)
@@ -97,6 +103,27 @@ func initDocker(logger *slog.Logger) (*docker.Manager, *dockerclient.Client, err
 	}
 
 	return dockerMgr, cli, nil
+}
+
+func startStreamHeartbeat(ctx context.Context, streamClient *grpcclient.StreamClient, runnerID string, vmMgr *vm.Manager, taskExecutor *task.Executor, logger *slog.Logger) {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			runningVMs := int32(vmMgr.RunningCount())
+			runningTasks := int32(taskExecutor.RunningCount())
+
+			if err := streamClient.SendHeartbeat(runnerID, runningVMs, runningTasks); err != nil {
+				logger.Error("stream heartbeat failed", "error", err)
+			} else {
+				logger.Debug("stream heartbeat sent", "runner_id", runnerID, "vms", runningVMs, "tasks", runningTasks)
+			}
+		}
+	}
 }
 
 func startHeartbeat(ctx context.Context, grpcClient *grpcclient.Client, runnerID string, vmMgr *vm.Manager, taskExecutor *task.Executor, logger *slog.Logger) {

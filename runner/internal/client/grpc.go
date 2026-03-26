@@ -78,3 +78,7 @@ func (c *Client) CreateTask(ctx context.Context, req *pb.CreateTaskRequest) (*pb
 func (c *Client) StopTask(ctx context.Context, req *pb.StopTaskRequest) (*pb.StopTaskResponse, error) {
 	return c.client.StopTask(ctx, req)
 }
+
+func (c *Client) Client() pb.RunnerServiceClient {
+	return c.client
+}
