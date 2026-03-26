@@ -10,18 +10,21 @@ WORKDIR /build
 # Install git for git operations
 RUN apk add --no-cache git ca-certificates
 
-# Copy go mod files
+# Copy go mod files and vendor directory
 COPY go.mod go.sum ./
-RUN go mod download
+COPY vendor/ ./vendor/
 
 # Copy source code
 COPY . .
 
-# Build runner
-RUN CGO_ENABLED=0 GOOS=linux go build \
+# Build runner using vendor mode
+RUN go build -mod=vendor \
     -ldflags "-s -w" \
     -o runner \
     ./cmd/runner
+
+# Remove vendor directory from build stage (not needed in final image)
+RUN rm -rf /build/vendor
 
 # ===========================================
 # Runtime stage
@@ -35,21 +38,23 @@ RUN apk add --no-cache \
     ca-certificates \
     git \
     tzdata \
+    && addgroup -S docker \
     && addgroup -S runner \
-    && adduser -S runner -G runner
-
-# Set non-root user
-USER runner
+    && adduser -S runner -G runner \
+    && addgroup runner docker
 
 # Copy runner binary from builder
 COPY --from=builder /build/runner /usr/local/bin/runner
 
-# Verify installation
+# Verify installation (must be before USER change)
 RUN chmod +x /usr/local/bin/runner
 
-# Create workspace directory
+# Create workspace directory (must be before USER change)
 RUN mkdir -p /workspace /app/data && \
     chown -R runner:runner /workspace /app/data
+
+# Set non-root user
+USER runner
 
 WORKDIR /workspace
 
