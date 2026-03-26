@@ -60,9 +60,10 @@ func main() {
 
 	redisStore := store.NewRedisStore(redisClient)
 	runnerManager := runner.NewManager()
+	streamManager := runner.NewStreamManager()
 	backendClient := backend.NewClient(&cfg.Backend)
 
-	grpcServer := server.NewGRPCServer(redisStore, runnerManager, backendClient, logger)
+	grpcServer := server.NewGRPCServer(redisStore, runnerManager, streamManager, backendClient, logger)
 	grpcListener, err := net.Listen("tcp", cfg.Server.GRPCAddr)
 	if err != nil {
 		log.Fatalf("Failed to listen on gRPC address: %v", err)
@@ -78,7 +79,7 @@ func main() {
 		}
 	}()
 
-	handlers := handler.NewHandlers(redisStore, runnerManager)
+	handlers := handler.NewHandlers(redisStore, runnerManager, streamManager)
 	httpServer := server.NewHTTPServer()
 	server.RegisterHandlers(httpServer.Echo, handlers)
 

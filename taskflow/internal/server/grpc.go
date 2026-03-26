@@ -2,29 +2,32 @@ package server
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
 	"github.com/chaitin/MonkeyCode/taskflow/internal/backend"
-	pb "github.com/chaitin/MonkeyCode/taskflow/pkg/proto"
 	"github.com/chaitin/MonkeyCode/taskflow/internal/runner"
 	"github.com/chaitin/MonkeyCode/taskflow/internal/store"
+	pb "github.com/chaitin/MonkeyCode/taskflow/pkg/proto"
 )
 
 type GRPCServer struct {
 	pb.UnimplementedRunnerServiceServer
-	store    *store.RedisStore
-	manager  *runner.Manager
-	logger   *slog.Logger
-	backend  *backend.Client
+	store         *store.RedisStore
+	manager       *runner.Manager
+	streamManager *runner.StreamManager
+	logger        *slog.Logger
+	backend       *backend.Client
 }
 
-func NewGRPCServer(s *store.RedisStore, m *runner.Manager, b *backend.Client, logger *slog.Logger) *GRPCServer {
+func NewGRPCServer(s *store.RedisStore, m *runner.Manager, sm *runner.StreamManager, b *backend.Client, logger *slog.Logger) *GRPCServer {
 	return &GRPCServer{
-		store:   s,
-		manager: m,
-		backend: b,
-		logger:  logger,
+		store:         s,
+		manager:       m,
+		streamManager: sm,
+		backend:       b,
+		logger:        logger,
 	}
 }
 
@@ -245,5 +248,114 @@ func (s *GRPCServer) ReportStream(req *pb.ReportRequest, stream pb.RunnerService
 			return err
 		}
 		time.Sleep(1 * time.Second)
+	}
+}
+
+func (s *GRPCServer) CommandStream(stream pb.RunnerService_CommandStreamServer) error {
+	ctx := stream.Context()
+
+	firstMsg, err := stream.Recv()
+	if err != nil {
+		return err
+	}
+
+	ready := firstMsg.GetReady()
+	if ready == nil {
+		return errors.New("first message must be RunnerReady")
+	}
+
+	runnerID := ready.RunnerId
+	s.logger.Info("runner stream connected", "runner_id", runnerID)
+
+	rs := s.streamManager.Register(runnerID, stream)
+	defer s.streamManager.Unregister(runnerID)
+
+	errChan := make(chan error, 2)
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case cmd, ok := <-rs.SendChan:
+				if !ok {
+					return
+				}
+				if err := stream.Send(cmd); err != nil {
+					errChan <- err
+					return
+				}
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			msg, err := stream.Recv()
+			if err != nil {
+				errChan <- err
+				return
+			}
+
+			switch m := msg.Message.(type) {
+			case *pb.RunnerMessage_Result:
+				s.handleCommandResult(ctx, m.Result)
+			case *pb.RunnerMessage_Heartbeat:
+				s.handleStreamHeartbeat(ctx, m.Heartbeat)
+			}
+		}
+	}()
+
+	select {
+	case <-ctx.Done():
+		s.logger.Info("runner stream disconnected", "runner_id", runnerID)
+		return ctx.Err()
+	case err := <-errChan:
+		s.logger.Error("runner stream error", "runner_id", runnerID, "error", err)
+		return err
+	}
+}
+
+func (s *GRPCServer) handleCommandResult(ctx context.Context, result *pb.CommandResult) {
+	s.logger.Info("command result received",
+		"command_id", result.CommandId,
+		"success", result.Success,
+		"message", result.Message)
+
+	if vmID, ok := result.Data["vm_id"]; ok {
+		vm, err := s.store.GetVM(ctx, vmID)
+		if err != nil {
+			s.logger.Error("failed to get vm", "vm_id", vmID, "error", err)
+			return
+		}
+
+		if containerID, ok := result.Data["container_id"]; ok {
+			vm.ContainerID = containerID
+		}
+
+		if result.Success {
+			vm.Status = "running"
+		} else {
+			vm.Status = "error"
+		}
+
+		if err := s.store.SetVM(ctx, vm); err != nil {
+			s.logger.Error("failed to update vm", "vm_id", vmID, "error", err)
+		}
+	}
+}
+
+func (s *GRPCServer) handleStreamHeartbeat(ctx context.Context, hb *pb.HeartbeatMessage) {
+	s.manager.UpdateHeartbeat(hb.RunnerId)
+
+	r, err := s.store.GetRunner(ctx, hb.RunnerId)
+	if err != nil {
+		s.logger.Warn("heartbeat from unknown runner", "runner_id", hb.RunnerId)
+		return
+	}
+
+	r.LastSeen = time.Now().Unix()
+	if err := s.store.RegisterRunner(ctx, r, 60*time.Second); err != nil {
+		s.logger.Error("failed to update runner heartbeat", "error", err)
 	}
 }

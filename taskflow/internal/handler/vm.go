@@ -7,17 +7,19 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
+	pb "github.com/chaitin/MonkeyCode/taskflow/pkg/proto"
 	"github.com/chaitin/MonkeyCode/taskflow/internal/runner"
 	"github.com/chaitin/MonkeyCode/taskflow/internal/store"
 )
 
 type VMHandler struct {
-	store   *store.RedisStore
-	manager *runner.Manager
+	store         *store.RedisStore
+	manager       *runner.Manager
+	streamManager *runner.StreamManager
 }
 
-func NewVMHandler(s *store.RedisStore, m *runner.Manager) *VMHandler {
-	return &VMHandler{store: s, manager: m}
+func NewVMHandler(s *store.RedisStore, m *runner.Manager, sm *runner.StreamManager) *VMHandler {
+	return &VMHandler{store: s, manager: m, streamManager: sm}
 }
 
 type CreateVMRequest struct {
@@ -42,6 +44,10 @@ func (h *VMHandler) Create(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "user_id required")
 	}
 
+	if !h.streamManager.IsOnline(req.HostID) {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, "runner offline")
+	}
+
 	vmID := uuid.New().String()
 
 	vm := &store.VM{
@@ -60,6 +66,26 @@ func (h *VMHandler) Create(c echo.Context) error {
 
 	if err := h.store.AddUserVM(c.Request().Context(), req.UserID, vmID); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	cmd := &pb.TaskflowCommand{
+		CommandId: uuid.New().String(),
+		Command: &pb.TaskflowCommand_CreateVm{
+			CreateVm: &pb.CreateVMCommand{
+				VmId:       vmID,
+				ImageUrl:   req.ImageURL,
+				GitUrl:     req.GitURL,
+				GitToken:   req.GitToken,
+				Cores:      req.Cores,
+				Memory:     req.Memory,
+				EnvVars:    req.EnvVars,
+				TtlSeconds: req.TTL,
+			},
+		},
+	}
+
+	if err := h.streamManager.SendCommand(req.HostID, cmd); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to send command: "+err.Error())
 	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{

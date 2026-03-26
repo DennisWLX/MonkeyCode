@@ -13,10 +13,10 @@ type Handlers struct {
 	PortForward *PortForwardHandler
 }
 
-func NewHandlers(s *store.RedisStore, m *runner.Manager) *Handlers {
+func NewHandlers(s *store.RedisStore, m *runner.Manager, sm *runner.StreamManager) *Handlers {
 	return &Handlers{
 		Host:        NewHostHandler(s),
-		VM:          NewVMHandler(s, m),
+		VM:          NewVMHandler(s, m, sm),
 		Task:        NewTaskHandler(s),
 		Stats:       NewStatsHandler(s, m),
 		PortForward: NewPortForwardHandler(s, m),
