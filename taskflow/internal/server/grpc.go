@@ -9,6 +9,7 @@ import (
 	"github.com/chaitin/MonkeyCode/taskflow/internal/backend"
 	"github.com/chaitin/MonkeyCode/taskflow/internal/runner"
 	"github.com/chaitin/MonkeyCode/taskflow/internal/store"
+	"github.com/chaitin/MonkeyCode/taskflow/pkg/loki"
 	pb "github.com/chaitin/MonkeyCode/taskflow/pkg/proto"
 )
 
@@ -19,14 +20,16 @@ type GRPCServer struct {
 	streamManager *runner.StreamManager
 	logger        *slog.Logger
 	backend       *backend.Client
+	loki          *loki.Client
 }
 
-func NewGRPCServer(s *store.RedisStore, m *runner.Manager, sm *runner.StreamManager, b *backend.Client, logger *slog.Logger) *GRPCServer {
+func NewGRPCServer(s *store.RedisStore, m *runner.Manager, sm *runner.StreamManager, b *backend.Client, l *loki.Client, logger *slog.Logger) *GRPCServer {
 	return &GRPCServer{
 		store:         s,
 		manager:       m,
 		streamManager: sm,
 		backend:       b,
+		loki:          l,
 		logger:        logger,
 	}
 }
@@ -302,6 +305,8 @@ func (s *GRPCServer) CommandStream(stream pb.RunnerService_CommandStreamServer) 
 				s.handleCommandResult(ctx, m.Result)
 			case *pb.RunnerMessage_Heartbeat:
 				s.handleStreamHeartbeat(ctx, m.Heartbeat)
+			case *pb.RunnerMessage_Report:
+				s.handleReport(ctx, m.Report)
 			}
 		}
 	}()
@@ -357,5 +362,23 @@ func (s *GRPCServer) handleStreamHeartbeat(ctx context.Context, hb *pb.Heartbeat
 	r.LastSeen = time.Now().Unix()
 	if err := s.store.RegisterRunner(ctx, r, 60*time.Second); err != nil {
 		s.logger.Error("failed to update runner heartbeat", "error", err)
+	}
+}
+
+func (s *GRPCServer) handleReport(ctx context.Context, report *pb.ReportEntry) {
+	s.logger.Debug("report received", "task_id", report.TaskId, "source", report.Source)
+
+	if s.loki == nil {
+		s.logger.Warn("loki client not configured, skipping report")
+		return
+	}
+
+	entry := loki.LogEntry{
+		Timestamp: report.Timestamp,
+		Line:      string(report.Data),
+	}
+
+	if err := s.loki.Push(ctx, report.TaskId, []loki.LogEntry{entry}); err != nil {
+		s.logger.Error("failed to push report to loki", "error", err)
 	}
 }

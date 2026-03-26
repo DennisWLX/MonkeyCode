@@ -12,6 +12,7 @@ type Config struct {
 	Log     LogConfig     `yaml:"log"`
 	Backend BackendConfig `yaml:"backend"`
 	Runner  RunnerConfig  `yaml:"runner"`
+	Loki    LokiConfig    `yaml:"loki"`
 }
 
 type ServerConfig struct {
@@ -36,6 +37,10 @@ type BackendConfig struct {
 type RunnerConfig struct {
 	Token           string `yaml:"token"`
 	HeartbeatTimout int    `yaml:"heartbeat_timeout"`
+}
+
+type LokiConfig struct {
+	URL string `yaml:"url"`
 }
 
 func Load(path string) (*Config, error) {
@@ -71,5 +76,8 @@ func setDefaults(cfg *Config) {
 	}
 	if cfg.Runner.HeartbeatTimout == 0 {
 		cfg.Runner.HeartbeatTimout = 60
+	}
+	if cfg.Loki.URL == "" {
+		cfg.Loki.URL = "http://localhost:3100"
 	}
 }

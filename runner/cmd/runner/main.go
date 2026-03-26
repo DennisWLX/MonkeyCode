@@ -74,6 +74,7 @@ func main() {
 	}
 
 	go startStreamHeartbeat(ctx, streamClient, runnerID, vmMgr, taskExecutor, logger)
+	go startReportSender(ctx, streamClient, taskExecutor, logger)
 	go startHTTPServer(ctx, vmMgr, termMgr, taskMgr, taskExecutor, forwardMgr, logger)
 
 	sigCh := make(chan os.Signal, 1)
@@ -121,6 +122,19 @@ func startStreamHeartbeat(ctx context.Context, streamClient *grpcclient.StreamCl
 				logger.Error("stream heartbeat failed", "error", err)
 			} else {
 				logger.Debug("stream heartbeat sent", "runner_id", runnerID, "vms", runningVMs, "tasks", runningTasks)
+			}
+		}
+	}
+}
+
+func startReportSender(ctx context.Context, streamClient *grpcclient.StreamClient, taskExecutor *task.Executor, logger *slog.Logger) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case report := <-taskExecutor.Reports():
+			if err := streamClient.SendReport(report.TaskID, report.Source, report.Timestamp, report.Data); err != nil {
+				logger.Error("failed to send report", "error", err, "task_id", report.TaskID)
 			}
 		}
 	}

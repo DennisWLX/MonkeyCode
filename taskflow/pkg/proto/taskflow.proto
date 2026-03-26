@@ -152,6 +152,7 @@ message RunnerMessage {
         RunnerReady ready = 1;
         CommandResult result = 2;
         HeartbeatMessage heartbeat = 3;
+        ReportEntry report = 4;
     }
 }
 

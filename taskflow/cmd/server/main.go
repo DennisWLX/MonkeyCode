@@ -18,6 +18,7 @@ import (
 	"github.com/chaitin/MonkeyCode/taskflow/internal/runner"
 	"github.com/chaitin/MonkeyCode/taskflow/internal/server"
 	"github.com/chaitin/MonkeyCode/taskflow/internal/store"
+	"github.com/chaitin/MonkeyCode/taskflow/pkg/loki"
 	pb "github.com/chaitin/MonkeyCode/taskflow/pkg/proto"
 
 	"google.golang.org/grpc"
@@ -62,8 +63,9 @@ func main() {
 	runnerManager := runner.NewManager()
 	streamManager := runner.NewStreamManager()
 	backendClient := backend.NewClient(&cfg.Backend)
+	lokiClient := loki.NewClient(cfg.Loki.URL, logger)
 
-	grpcServer := server.NewGRPCServer(redisStore, runnerManager, streamManager, backendClient, logger)
+	grpcServer := server.NewGRPCServer(redisStore, runnerManager, streamManager, backendClient, lokiClient, logger)
 	grpcListener, err := net.Listen("tcp", cfg.Server.GRPCAddr)
 	if err != nil {
 		log.Fatalf("Failed to listen on gRPC address: %v", err)

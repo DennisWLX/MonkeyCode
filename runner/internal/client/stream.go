@@ -199,3 +199,16 @@ func (c *StreamClient) SendHeartbeat(runnerID string, runningVMs, runningTasks i
 		},
 	})
 }
+
+func (c *StreamClient) SendReport(taskID, source string, timestamp int64, data []byte) error {
+	return c.stream.Send(&pb.RunnerMessage{
+		Message: &pb.RunnerMessage_Report{
+			Report: &pb.ReportEntry{
+				TaskId:    taskID,
+				Source:    source,
+				Timestamp: timestamp,
+				Data:      data,
+			},
+		},
+	})
+}
