@@ -7,9 +7,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
-	pb "github.com/chaitin/MonkeyCode/taskflow/pkg/proto"
 	"github.com/chaitin/MonkeyCode/taskflow/internal/runner"
 	"github.com/chaitin/MonkeyCode/taskflow/internal/store"
+	pb "github.com/chaitin/MonkeyCode/taskflow/pkg/proto"
 )
 
 type VMHandler struct {
@@ -105,6 +105,24 @@ func (h *VMHandler) Delete(c echo.Context) error {
 	vm, err := h.store.GetVM(c.Request().Context(), vmID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "vm not found")
+	}
+
+	if !h.streamManager.IsOnline(vm.RunnerID) {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, "runner offline")
+	}
+
+	cmd := &pb.TaskflowCommand{
+		CommandId: uuid.New().String(),
+		Command: &pb.TaskflowCommand_DeleteVm{
+			DeleteVm: &pb.DeleteVMCommand{
+				VmId:        vmID,
+				ContainerId: vm.ContainerID,
+			},
+		},
+	}
+
+	if err := h.streamManager.SendCommand(vm.RunnerID, cmd); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to send command: "+err.Error())
 	}
 
 	vm.Status = "deleted"

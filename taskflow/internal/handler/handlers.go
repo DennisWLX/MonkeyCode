@@ -17,7 +17,7 @@ func NewHandlers(s *store.RedisStore, m *runner.Manager, sm *runner.StreamManage
 	return &Handlers{
 		Host:        NewHostHandler(s),
 		VM:          NewVMHandler(s, m, sm),
-		Task:        NewTaskHandler(s),
+		Task:        NewTaskHandler(s, sm),
 		Stats:       NewStatsHandler(s, m),
 		PortForward: NewPortForwardHandler(s, m),
 	}
