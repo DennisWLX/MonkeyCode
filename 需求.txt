@@ -1,0 +1,53 @@
+这里可能需要重新整理一下runner这个服务需要担任的职责了，我这边重新梳理一下我想要的东西，由于这个monkeyCoded的开源项目没有开源taskflow服务和installer
+所以我也要实现一个installer来安装这个runner服务以及相应的环境
+以下是MonkeyCode runner Installer的安装日志，展示了安装过程中的各个步骤和状态信息。安装过程中包括系统要求检查、安装目录创建、文件下载、变量生成、.env文件渲染、镜像拉取和容器启动等操作，最终成功完成安装。
+
+sudo bash -c "$(curl -fsSL 'https://monkeycode-ai.com/api/v1/users/hosts/install?token=97125d42-3ec3-4917-843c-95a4fbcf2477')"
+Architecture: x86_64
+Starting MonkeyCode Runner Installer
+Downloading installer...
+Download completed
+Setting up installer...
+Starting installation...
+
+                 ███    ███  ██████  ███    ██ ██   ██ ███████ ██    ██  ██████  ██████  ██████  ███████         ██████  ██    ██ ███    ██ ███    ██ ███████ ██████  
+                 ████  ████ ██    ██ ████   ██ ██  ██  ██       ██  ██  ██      ██    ██ ██   ██ ██              ██   ██ ██    ██ ████   ██ ████   ██ ██      ██   ██ 
+                 ██ ████ ██ ██    ██ ██ ██  ██ █████   █████     ████   ██      ██    ██ ██   ██ █████           ██████  ██    ██ ██ ██  ██ ██ ██  ██ █████   ██████  
+                 ██  ██  ██ ██    ██ ██  ██ ██ ██  ██  ██         ██    ██      ██    ██ ██   ██ ██              ██   ██ ██    ██ ██  ██ ██ ██  ██ ██ ██      ██   ██ 
+                 ██      ██  ██████  ██   ████ ██   ██ ███████    ██     ██████  ██████  ██████  ███████ ███████ ██   ██  ██████  ██   ████ ██   ████ ███████ ██   ██ 
+                 
+                                                                                                                                                                                        
+                                                                         A modern code assistant powered by AI                                                                          
+                                                                                                                                                                                        
+
+请选择操作: 
+  > 安装
+   INFO     正在检查系统要求...
+   SUCCESS  系统要求检查通过
+请输入安装目录: /data/monkeycode_runner
+   INFO     创建安装目录...
+   SUCCESS  安装目录创建成功
+   INFO     正在下载文件: https://release.baizhi.cloud/monkeycode/runner/docker-compose.yml                                                                                             
+   SUCCESS  docker-compose.yml 下载成功                                                                                                                                                 
+   INFO     正在下载文件: https://release.baizhi.cloud/monkeycode/runner/env.template                                                                                                   
+   SUCCESS  .env 模板下载成功                                                                                                                                                           
+   INFO     生成变量...
+   SUCCESS  变量生成成功
+   INFO     渲染 .env 文件...
+   SUCCESS  .env 文件渲染成功
+[+] pull 2/2..                                  (0s)
+ ✔ Image chaitin-registry.cn-hangzhou.cr.aliyuncs.com/monkeycode/watchtower:latest                Pulled                                                                            0.7s
+ ✔ Image chaitin-registry.cn-hangzhou.cr.aliyuncs.com/monkeycode/codingmatrix-orchestrator:latest Pulled                                                                            0.8s
+   SUCCESS  镜像拉取成功                                                                                                                                                                
+[+] up 3/3 ...                                  (0s)
+ ✔ Network monkeycode_runner_default          Created                                                                                                                               0.1s
+ ✔ Container monkeycode_runner-watchtower-1   Started                                                                                                                               0.6s
+ ✔ Container monkeycode_runner-orchestrator-1 Started                                                                                                                               0.5s
+   SUCCESS  容器启动成功                                                                                                                                                                
+   SUCCESS  安装完成
+   INFO     
+
+Installation completed successfully
+Cleaning up temporary files...
+
+参考以上的内容，帮我实现一个我的installer

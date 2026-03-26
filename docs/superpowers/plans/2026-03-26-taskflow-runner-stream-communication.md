@@ -8,15 +8,17 @@
 
 **Tech Stack:** Go, gRPC, Protocol Buffers, Redis
 
----
+***
 
 ## 文件结构
 
 ### 新增文件
+
 - `taskflow/internal/runner/stream_manager.go` - Runner 流连接管理器
 - `runner/internal/client/stream.go` - Runner 流客户端
 
 ### 修改文件
+
 - `taskflow/pkg/proto/taskflow.proto` - 新增双向流消息定义
 - `taskflow/internal/server/grpc.go` - 新增 CommandStream 方法
 - `taskflow/internal/handler/vm.go` - 修改 Create 方法，添加在线检查和命令发送
@@ -25,13 +27,13 @@
 - `runner/cmd/runner/main.go` - 使用流客户端连接
 - `runner/internal/client/grpc.go` - 暴露 gRPC 客户端
 
----
+***
 
 ## Task 1: 扩展 Proto 定义
 
 **Files:**
-- Modify: `taskflow/pkg/proto/taskflow.proto`
 
+- Modify: `taskflow/pkg/proto/taskflow.proto`
 - [ ] **Step 1: 添加双向流消息定义**
 
 在 `taskflow.proto` 文件末尾添加以下内容：
@@ -129,13 +131,13 @@ git add taskflow/pkg/proto/
 git commit -m "feat(taskflow): 添加 gRPC 双向流消息定义"
 ```
 
----
+***
 
 ## Task 2: 实现 StreamManager
 
 **Files:**
-- Create: `taskflow/internal/runner/stream_manager.go`
 
+- Create: `taskflow/internal/runner/stream_manager.go`
 - [ ] **Step 1: 创建 StreamManager 文件**
 
 创建文件 `taskflow/internal/runner/stream_manager.go`：
@@ -250,13 +252,13 @@ git add taskflow/internal/runner/stream_manager.go
 git commit -m "feat(taskflow): 实现 StreamManager 管理 Runner 双向流连接"
 ```
 
----
+***
 
 ## Task 3: 实现 GRPC Server CommandStream 方法
 
 **Files:**
-- Modify: `taskflow/internal/server/grpc.go`
 
+- Modify: `taskflow/internal/server/grpc.go`
 - [ ] **Step 1: 修改 GRPCServer 结构体，添加 streamManager 字段**
 
 修改 `taskflow/internal/server/grpc.go`：
@@ -400,6 +402,7 @@ func (s *GRPCServer) handleStreamHeartbeat(ctx context.Context, hb *pb.Heartbeat
 - [ ] **Step 3: 添加必要的 import**
 
 确保 import 包含：
+
 ```go
 import (
 	"errors"
@@ -421,14 +424,14 @@ git add taskflow/internal/server/grpc.go
 git commit -m "feat(taskflow): 实现 CommandStream 双向流方法"
 ```
 
----
+***
 
 ## Task 4: 修改 VM Handler
 
 **Files:**
+
 - Modify: `taskflow/internal/handler/vm.go`
 - Modify: `taskflow/internal/handler/handlers.go`
-
 - [ ] **Step 1: 修改 VMHandler 结构体**
 
 修改 `taskflow/internal/handler/vm.go`：
@@ -514,6 +517,7 @@ func (h *VMHandler) Create(c echo.Context) error {
 - [ ] **Step 3: 添加 pb import**
 
 在 `vm.go` 文件顶部添加：
+
 ```go
 import (
 	pb "github.com/chaitin/MonkeyCode/taskflow/pkg/proto"
@@ -565,13 +569,13 @@ git add taskflow/internal/handler/
 git commit -m "feat(taskflow): VM Handler 添加 Runner 在线检查和命令发送"
 ```
 
----
+***
 
 ## Task 5: 修改 Taskflow main.go
 
 **Files:**
-- Modify: `taskflow/cmd/server/main.go`
 
+- Modify: `taskflow/cmd/server/main.go`
 - [ ] **Step 1: 初始化 StreamManager 并传递给相关组件**
 
 修改 `taskflow/cmd/server/main.go`：
@@ -604,13 +608,13 @@ git add taskflow/cmd/server/main.go
 git commit -m "feat(taskflow): main.go 初始化 StreamManager"
 ```
 
----
+***
 
 ## Task 6: 实现 Runner Stream Client
 
 **Files:**
-- Create: `runner/internal/client/stream.go`
 
+- Create: `runner/internal/client/stream.go`
 - [ ] **Step 1: 创建 StreamClient 文件**
 
 创建文件 `runner/internal/client/stream.go`：
@@ -808,13 +812,13 @@ git add runner/internal/client/stream.go
 git commit -m "feat(runner): 实现 StreamClient 处理 Taskflow 命令"
 ```
 
----
+***
 
 ## Task 7: 修改 Runner gRPC Client
 
 **Files:**
-- Modify: `runner/internal/client/grpc.go`
 
+- Modify: `runner/internal/client/grpc.go`
 - [ ] **Step 1: 暴露 gRPC 客户端**
 
 在 `runner/internal/client/grpc.go` 中添加方法：
@@ -838,13 +842,13 @@ git add runner/internal/client/grpc.go
 git commit -m "feat(runner): 暴露 gRPC 客户端供 StreamClient 使用"
 ```
 
----
+***
 
 ## Task 8: 修改 Runner main.go
 
 **Files:**
-- Modify: `runner/cmd/runner/main.go`
 
+- Modify: `runner/cmd/runner/main.go`
 - [ ] **Step 1: 使用 StreamClient 连接**
 
 修改 `runner/cmd/runner/main.go`，在注册成功后添加流连接：
@@ -926,13 +930,13 @@ git add runner/cmd/runner/main.go
 git commit -m "feat(runner): 使用 StreamClient 连接 Taskflow 并发送心跳"
 ```
 
----
+***
 
 ## Task 9: 集成测试
 
 **Files:**
-- 无文件变更
 
+- 无文件变更
 - [ ] **Step 1: 编译 Taskflow**
 
 Run: `cd /Users/wanglx/dennis/project/MonkeyCode/taskflow && go build -o bin/taskflow ./cmd/server`
@@ -952,7 +956,7 @@ git add -A
 git commit -m "feat: 完成 Taskflow-Runner gRPC 双向流通信机制实现"
 ```
 
----
+***
 
 ## 验收标准
 
@@ -961,3 +965,4 @@ git commit -m "feat: 完成 Taskflow-Runner gRPC 双向流通信机制实现"
 3. Runner 执行命令后能通过流返回结果
 4. Taskflow 能正确更新 VM 状态
 5. Runner 离线时 Taskflow 能正确拒绝创建请求
+
