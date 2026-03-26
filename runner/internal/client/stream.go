@@ -131,12 +131,30 @@ func (c *StreamClient) handleDeleteVM(ctx context.Context, cmd *pb.TaskflowComma
 
 func (c *StreamClient) handleCreateTask(ctx context.Context, cmd *pb.TaskflowCommand) {
 	createCmd := cmd.GetCreateTask()
-	c.logger.Info("received create task command", "task_id", createCmd.TaskId)
+	c.logger.Info("received create task command", "task_id", createCmd.TaskId, "vm_id", createCmd.VmId)
 
 	result := &pb.CommandResult{
 		CommandId: cmd.CommandId,
 		Success:   true,
 		Message:   "task created",
+		Data:      make(map[string]string),
+	}
+
+	task, err := c.taskMgr.Create(task.CreateOptions{
+		VMID:   createCmd.VmId,
+		UserID: createCmd.TaskId,
+		Text:   createCmd.Text,
+		Model:  createCmd.Model,
+		Agent:  "opencode",
+	})
+
+	if err != nil {
+		result.Success = false
+		result.Message = err.Error()
+		c.logger.Error("failed to create task", "error", err)
+	} else {
+		result.Data["task_id"] = task.ID
+		c.logger.Info("task created", "task_id", task.ID)
 	}
 
 	c.sendResult(result)
@@ -150,6 +168,12 @@ func (c *StreamClient) handleStopTask(ctx context.Context, cmd *pb.TaskflowComma
 		CommandId: cmd.CommandId,
 		Success:   true,
 		Message:   "task stopped",
+	}
+
+	if err := c.taskMgr.Cancel(stopCmd.TaskId); err != nil {
+		result.Success = false
+		result.Message = err.Error()
+		c.logger.Error("failed to stop task", "error", err)
 	}
 
 	c.sendResult(result)
