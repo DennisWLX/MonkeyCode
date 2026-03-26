@@ -16,14 +16,19 @@ import (
 )
 
 type Installer struct {
-	installDir string
-	docker     *DockerClient
+	installDir  string
+	runnerImage string
+	docker      *DockerClient
 }
 
-func NewInstaller(installDir string) *Installer {
+func NewInstaller(installDir, runnerImage string) *Installer {
+	if runnerImage == "" {
+		runnerImage = "ghcr.io/chaitin/monkeycode-runner:latest"
+	}
 	return &Installer{
-		installDir: installDir,
-		docker:     NewDockerClient(),
+		installDir:  installDir,
+		runnerImage: runnerImage,
+		docker:      NewDockerClient(),
 	}
 }
 
@@ -98,7 +103,7 @@ func (i *Installer) Install(envVars map[string]string) error {
 	fmt.Printf("✅ 镜像拉取成功\n")
 
 	fmt.Println("🚀 正在启动容器...")
-	if err := i.startContainers(); err != nil {
+	if err := i.startContainers(envVars); err != nil {
 		return fmt.Errorf("启动容器失败: %w", err)
 	}
 	fmt.Printf("✅ 容器启动成功\n")
@@ -185,8 +190,7 @@ func (i *Installer) renderEnvFile(templatePath, destPath string, vars map[string
 
 func (i *Installer) pullImages() error {
 	images := []string{
-		"ghcr.io/chaitin/monkeycode/watchtower:latest",
-		"ghcr.io/chaitin/monkeycode/orchestrator:latest",
+		"ghcr.io/chaitin/monkeycode-runner:latest",
 	}
 
 	for _, image := range images {
@@ -199,9 +203,28 @@ func (i *Installer) pullImages() error {
 	return nil
 }
 
-func (i *Installer) startContainers() error {
-	cmd := exec.Command("docker-compose", "-f", filepath.Join(i.installDir, "docker-compose.yml"), "up", "-d")
-	cmd.Dir = i.installDir
+func (i *Installer) startContainers(envVars map[string]string) error {
+	containerName := "monkeycode-runner"
+
+	stopCmd := exec.Command("docker", "rm", "-f", containerName)
+	stopCmd.Run()
+
+	args := []string{
+		"run", "-d",
+		"--name", containerName,
+		"--restart", "unless-stopped",
+		"--network", "host",
+		"-v", "/var/run/docker.sock:/var/run/docker.sock",
+		"-v", "/data/monkeycode-runner:/data/runner",
+	}
+
+	for k, v := range envVars {
+		args = append(args, "-e", fmt.Sprintf("%s=%s", k, v))
+	}
+
+	args = append(args, "ghcr.io/chaitin/monkeycode-runner:latest")
+
+	cmd := exec.Command("docker", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
@@ -211,18 +234,16 @@ func (i *Installer) startContainers() error {
 
 	time.Sleep(2 * time.Second)
 
-	statusCmd := exec.Command("docker", "ps", "--filter", "name=monkeycode", "--format", "{{.Names}}")
-	statusCmd.Dir = i.installDir
+	statusCmd := exec.Command("docker", "ps", "--filter", fmt.Sprintf("name=%s", containerName), "--format", "{{.Names}}")
 	output, err := statusCmd.Output()
 	if err != nil {
 		return fmt.Errorf("检查容器状态失败: %w", err)
 	}
 
-	containers := strings.Split(strings.TrimSpace(string(output)), "\n")
-	for _, name := range containers {
-		if name != "" {
-			fmt.Printf("   ✅ 容器已启动: %s\n", name)
-		}
+	if strings.TrimSpace(string(output)) == containerName {
+		fmt.Printf("   ✅ 容器已启动: %s\n", containerName)
+	} else {
+		return fmt.Errorf("容器启动失败，请检查日志")
 	}
 
 	return nil

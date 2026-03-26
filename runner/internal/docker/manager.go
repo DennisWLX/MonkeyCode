@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"io"
 	"log/slog"
 
 	"github.com/docker/docker/api/types/container"
@@ -40,4 +41,35 @@ func (m *Manager) ListContainers(ctx context.Context) ([]container.Summary, erro
 
 func (m *Manager) GetContainer(ctx context.Context, containerID string) (container.InspectResponse, error) {
 	return m.client.ContainerInspect(ctx, containerID)
+}
+
+func (m *Manager) ExecInContainer(ctx context.Context, containerID string, cmd []string, stdin io.Reader, stdout io.Writer) (int, error) {
+	execConfig := container.ExecOptions{
+		AttachStdin:  stdin != nil,
+		AttachStdout: stdout != nil,
+		AttachStderr: true,
+		Cmd:          cmd,
+	}
+
+	execResp, err := m.client.ContainerExecCreate(ctx, containerID, execConfig)
+	if err != nil {
+		return -1, err
+	}
+
+	attachResp, err := m.client.ContainerExecAttach(ctx, execResp.ID, container.ExecStartOptions{})
+	if err != nil {
+		return -1, err
+	}
+	defer attachResp.Close()
+
+	if stdout != nil {
+		go io.Copy(stdout, attachResp.Reader)
+	}
+
+	inspectResp, err := m.client.ContainerExecInspect(ctx, execResp.ID)
+	if err != nil {
+		return -1, err
+	}
+
+	return inspectResp.ExitCode, nil
 }

@@ -12,6 +12,7 @@ func main() {
 	grpcHost := flag.String("grpc-host", "", "gRPC host")
 	grpcPort := flag.String("grpc-port", "", "gRPC port")
 	grpcURL := flag.String("grpc-url", "", "gRPC URL")
+	runnerImage := flag.String("runner-image", "", "Runner image (default: ghcr.io/chaitin/monkeycode-runner:latest)")
 	flag.Parse()
 
 	if *installDir == "" {
@@ -36,7 +37,7 @@ func main() {
 		installDir = &dir
 	}
 
-	installer := NewInstaller(*installDir)
+	installer := NewInstaller(*installDir, *runnerImage)
 
 	if err := installer.CheckSystem(); err != nil {
 		log.Fatalf("系统检查失败: %v", err)

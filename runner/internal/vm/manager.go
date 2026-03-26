@@ -120,12 +120,33 @@ func (m *Manager) provisionVM(vmID string, opts CreateOptions) {
 		return
 	}
 
+	if err := m.installOpenCode(ctx, containerID); err != nil {
+		m.setError(vmID, fmt.Sprintf("failed to install opencode: %v", err))
+		return
+	}
+
 	m.mu.Lock()
 	if vm, ok := m.vms[vmID]; ok {
 		vm.ContainerID = containerID
 		vm.Status = StatusRunning
 	}
 	m.mu.Unlock()
+}
+
+func (m *Manager) installOpenCode(ctx context.Context, containerID string) error {
+	installCmd := []string{
+		"sh", "-c",
+		"command -v opencode || (curl -fsSL https://raw.githubusercontent.com/opencode-ai/opencode/main/install.sh | sh)",
+	}
+
+	exitCode, err := m.docker.ExecInContainer(ctx, containerID, installCmd, nil, nil)
+	if err != nil {
+		return fmt.Errorf("exec install command: %w", err)
+	}
+	if exitCode != 0 {
+		return fmt.Errorf("install command exited with code %d", exitCode)
+	}
+	return nil
 }
 
 func (m *Manager) Delete(ctx context.Context, vmID string) error {
