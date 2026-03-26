@@ -27,6 +27,8 @@ type RunnerServiceClient interface {
 	StopTask(ctx context.Context, in *StopTaskRequest, opts ...grpc.CallOption) (*StopTaskResponse, error)
 	TerminalStream(ctx context.Context, opts ...grpc.CallOption) (RunnerService_TerminalStreamClient, error)
 	ReportStream(ctx context.Context, in *ReportRequest, opts ...grpc.CallOption) (RunnerService_ReportStreamClient, error)
+	// 双向流通信
+	CommandStream(ctx context.Context, opts ...grpc.CallOption) (RunnerService_CommandStreamClient, error)
 }
 
 type runnerServiceClient struct {
@@ -172,6 +174,37 @@ func (x *runnerServiceReportStreamClient) Recv() (*ReportEntry, error) {
 	return m, nil
 }
 
+func (c *runnerServiceClient) CommandStream(ctx context.Context, opts ...grpc.CallOption) (RunnerService_CommandStreamClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_RunnerService_serviceDesc.Streams[2], "/taskflow.RunnerService/CommandStream", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &runnerServiceCommandStreamClient{stream}
+	return x, nil
+}
+
+type RunnerService_CommandStreamClient interface {
+	Send(*RunnerMessage) error
+	Recv() (*TaskflowCommand, error)
+	grpc.ClientStream
+}
+
+type runnerServiceCommandStreamClient struct {
+	grpc.ClientStream
+}
+
+func (x *runnerServiceCommandStreamClient) Send(m *RunnerMessage) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *runnerServiceCommandStreamClient) Recv() (*TaskflowCommand, error) {
+	m := new(TaskflowCommand)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // RunnerServiceServer is the server API for RunnerService service.
 // All implementations must embed UnimplementedRunnerServiceServer
 // for forward compatibility
@@ -186,6 +219,8 @@ type RunnerServiceServer interface {
 	StopTask(context.Context, *StopTaskRequest) (*StopTaskResponse, error)
 	TerminalStream(RunnerService_TerminalStreamServer) error
 	ReportStream(*ReportRequest, RunnerService_ReportStreamServer) error
+	// 双向流通信
+	CommandStream(RunnerService_CommandStreamServer) error
 	mustEmbedUnimplementedRunnerServiceServer()
 }
 
@@ -222,6 +257,9 @@ func (*UnimplementedRunnerServiceServer) TerminalStream(RunnerService_TerminalSt
 }
 func (*UnimplementedRunnerServiceServer) ReportStream(*ReportRequest, RunnerService_ReportStreamServer) error {
 	return status.Errorf(codes.Unimplemented, "method ReportStream not implemented")
+}
+func (*UnimplementedRunnerServiceServer) CommandStream(RunnerService_CommandStreamServer) error {
+	return status.Errorf(codes.Unimplemented, "method CommandStream not implemented")
 }
 func (*UnimplementedRunnerServiceServer) mustEmbedUnimplementedRunnerServiceServer() {}
 
@@ -420,6 +458,32 @@ func (x *runnerServiceReportStreamServer) Send(m *ReportEntry) error {
 	return x.ServerStream.SendMsg(m)
 }
 
+func _RunnerService_CommandStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(RunnerServiceServer).CommandStream(&runnerServiceCommandStreamServer{stream})
+}
+
+type RunnerService_CommandStreamServer interface {
+	Send(*TaskflowCommand) error
+	Recv() (*RunnerMessage, error)
+	grpc.ServerStream
+}
+
+type runnerServiceCommandStreamServer struct {
+	grpc.ServerStream
+}
+
+func (x *runnerServiceCommandStreamServer) Send(m *TaskflowCommand) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *runnerServiceCommandStreamServer) Recv() (*RunnerMessage, error) {
+	m := new(RunnerMessage)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 var _RunnerService_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "taskflow.RunnerService",
 	HandlerType: (*RunnerServiceServer)(nil),
@@ -468,6 +532,12 @@ var _RunnerService_serviceDesc = grpc.ServiceDesc{
 			StreamName:    "ReportStream",
 			Handler:       _RunnerService_ReportStream_Handler,
 			ServerStreams: true,
+		},
+		{
+			StreamName:    "CommandStream",
+			Handler:       _RunnerService_CommandStream_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
 		},
 	},
 	Metadata: "pkg/proto/taskflow.proto",
