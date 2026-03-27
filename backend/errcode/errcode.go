@@ -105,4 +105,10 @@ var (
 	ErrKBNotDir        = web.NewErr(http.StatusOK, 10904, "err-kb-not-dir")
 	ErrKBDirNotEmpty   = web.NewErr(http.StatusOK, 10905, "err-kb-dir-not-empty")
 	ErrKBAlreadyExists = web.NewErr(http.StatusOK, 10906, "err-kb-already-exists")
+
+	// GitHub App 集成
+	ErrGitHubAppInvalidState   = web.NewErr(http.StatusOK, 20001, "github-app-invalid-state")
+	ErrGitHubAppGetUserInfo    = web.NewErr(http.StatusOK, 20002, "github-app-get-user-info-failed")
+	ErrGitHubAppCreateIdentity = web.NewErr(http.StatusOK, 20003, "github-app-create-identity-failed")
+	ErrGitHubAppUpdateIdentity = web.NewErr(http.StatusOK, 20004, "github-app-update-identity-failed")
 )

@@ -194,6 +194,7 @@ message CreateVMCommand {
     int64 memory = 6;
     map<string, string> env_vars = 7;
     int64 ttl_seconds = 8;
+    string user_id = 9;
 }
 
 message DeleteVMCommand {

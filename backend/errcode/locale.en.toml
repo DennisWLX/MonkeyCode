@@ -167,3 +167,16 @@ other = "Model not found"
 
 [err-image-not-found]
 other = "Image not found"
+
++
++[github-app-invalid-state]
+other = "Invalid state parameter"
++
++[github-app-get-user-info-failed]
+other = "Failed to get GitHub user information"
++
++[github-app-create-identity-failed]
+other = "Failed to create Git identity"
++
++[github-app-update-identity-failed]
+other = "Failed to update Git identity"

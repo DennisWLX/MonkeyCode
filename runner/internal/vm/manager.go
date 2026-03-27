@@ -47,6 +47,7 @@ func NewManager(dockerMgr *docker.Manager) *Manager {
 }
 
 type CreateOptions struct {
+	VMID        string
 	UserID      string
 	ImageURL    string
 	GitURL      string
@@ -58,7 +59,10 @@ type CreateOptions struct {
 }
 
 func (m *Manager) Create(ctx context.Context, opts CreateOptions) (*VM, error) {
-	vmID := uuid.New().String()
+	vmID := opts.VMID
+	if vmID == "" {
+		vmID = uuid.New().String()
+	}
 
 	vm := &VM{
 		ID:        vmID,

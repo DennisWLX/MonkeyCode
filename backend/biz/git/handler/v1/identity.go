@@ -1,12 +1,14 @@
 package v1
 
 import (
+	"fmt"
 	"log/slog"
 	"net/url"
 
 	"github.com/GoYoko/web"
 	"github.com/samber/do"
 
+	"github.com/chaitin/MonkeyCode/backend/config"
 	"github.com/chaitin/MonkeyCode/backend/domain"
 	"github.com/chaitin/MonkeyCode/backend/errcode"
 	"github.com/chaitin/MonkeyCode/backend/middleware"
@@ -14,6 +16,7 @@ import (
 
 // GitIdentityHandler Git 身份认证处理器
 type GitIdentityHandler struct {
+	cfg     *config.Config
 	usecase domain.GitIdentityUsecase
 	logger  *slog.Logger
 }
@@ -22,8 +25,10 @@ type GitIdentityHandler struct {
 func NewGitIdentityHandler(i *do.Injector) (*GitIdentityHandler, error) {
 	w := do.MustInvoke[*web.Web](i)
 	auth := do.MustInvoke[*middleware.AuthMiddleware](i)
+	cfg := do.MustInvoke[*config.Config](i)
 
 	h := &GitIdentityHandler{
+		cfg:     cfg,
 		usecase: do.MustInvoke[domain.GitIdentityUsecase](i),
 		logger:  do.MustInvoke[*slog.Logger](i).With("module", "handler.git_identity"),
 	}
@@ -36,6 +41,7 @@ func NewGitIdentityHandler(i *do.Injector) (*GitIdentityHandler, error) {
 	g.PUT("/:id", web.BindHandler(h.Update))
 	g.DELETE("/:id", web.BindHandler(h.Delete))
 	g.GET("/:identity_id/:escaped_repo_full_name/branches", web.BindHandler(h.ListBranches))
+	g.GET("/github-app/install-url", web.BaseHandler(h.GetGitHubAppInstallUrl))
 
 	return h, nil
 }
@@ -102,4 +108,34 @@ func (h *GitIdentityHandler) ListBranches(c *web.Context, req domain.ListBranche
 		return err
 	}
 	return c.Success(branches)
+}
+
+// GetGitHubAppInstallUrl 获取 GitHub App 安装 URL
+//
+//	@Summary		获取 GitHub App 安装 URL
+//	@Description	生成带有 state 参数的 GitHub App 安装 URL
+//	@Tags			【Git】身份认证
+//	@Accept			json
+//	@Produce		json
+//	@Success		200	{object}	domain.GitHubAppInstallUrlResp
+//	@Router			/api/v1/users/git-identities/github-app/install-url [get]
+func (h *GitIdentityHandler) GetGitHubAppInstallUrl(c *web.Context) error {
+	user := middleware.GetUser(c)
+
+	state, err := h.usecase.GenerateGitHubAppState(c.Request().Context(), user.ID)
+	if err != nil {
+		h.logger.Error("failed to generate github app state", "error", err, "user_id", user.ID)
+		return errcode.ErrInternalServer.Wrap(err)
+	}
+
+	baseURL := h.cfg.Github.AppInstallUrl
+	if baseURL == "" {
+		baseURL = "https://github.com/apps/dennis-code-dev/installations/new"
+	}
+
+	installURL := fmt.Sprintf("%s?state=%s", baseURL, url.QueryEscape(state))
+
+	return c.Success(&domain.GitHubAppInstallUrlResp{
+		Url: installURL,
+	})
 }

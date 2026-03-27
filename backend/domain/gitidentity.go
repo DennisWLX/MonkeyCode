@@ -18,15 +18,20 @@ type GitIdentityUsecase interface {
 	Update(ctx context.Context, uid uuid.UUID, req *UpdateGitIdentityReq) error
 	Delete(ctx context.Context, uid uuid.UUID, id uuid.UUID) error
 	ListBranches(ctx context.Context, uid uuid.UUID, identityID uuid.UUID, repoFullName string, page, perPage int) ([]*Branch, error)
+	HandleGitHubAppSetup(ctx context.Context, req *GitHubAppSetupReq, uid uuid.UUID) (*GitHubAppSetupResp, error)
+	GenerateGitHubAppState(ctx context.Context, uid uuid.UUID) (string, error)
 }
 
 // GitIdentityRepo Git 身份认证数据仓库接口
 type GitIdentityRepo interface {
 	Get(ctx context.Context, id uuid.UUID) (*db.GitIdentity, error)
 	GetByUserID(ctx context.Context, uid uuid.UUID, id uuid.UUID) (*db.GitIdentity, error)
+	GetByInstallationID(ctx context.Context, installationID int64) (*db.GitIdentity, error)
 	List(ctx context.Context, uid uuid.UUID) ([]*db.GitIdentity, error)
 	Create(ctx context.Context, uid uuid.UUID, req *AddGitIdentityReq) (*db.GitIdentity, error)
+	CreateFromGitHubApp(ctx context.Context, uid uuid.UUID, installationID int64, username, email string) (*db.GitIdentity, error)
 	Update(ctx context.Context, uid uuid.UUID, id uuid.UUID, req *UpdateGitIdentityReq) error
+	UpdateFromGitHubApp(ctx context.Context, id uuid.UUID, username, email string) error
 	Delete(ctx context.Context, uid uuid.UUID, id uuid.UUID) error
 	CountProjectsByGitIdentityID(ctx context.Context, id uuid.UUID) (int, error)
 }
@@ -126,4 +131,23 @@ type ListBranchesReq struct {
 // Branch 分支信息
 type Branch struct {
 	Name string `json:"name"`
+}
+
+// GitHubAppSetupReq GitHub App 安装回调请求
+type GitHubAppSetupReq struct {
+	InstallationID int64  `query:"installation_id" validate:"required"`
+	SetupAction    string `query:"setup_action" validate:"required"`
+	State          string `query:"state"` // 可选的 state 参数,用于关联用户
+}
+
+// GitHubAppSetupResp GitHub App 安装回调响应
+type GitHubAppSetupResp struct {
+	Success      bool   `json:"success"`
+	AccountLogin string `json:"account_login,omitempty"`
+	Message      string `json:"message,omitempty"`
+}
+
+// GitHubAppInstallUrlResp GitHub App 安装 URL 响应
+type GitHubAppInstallUrlResp struct {
+	Url string `json:"url"`
 }

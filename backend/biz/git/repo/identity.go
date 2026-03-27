@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/samber/do"
 
+	"github.com/chaitin/MonkeyCode/backend/consts"
 	"github.com/chaitin/MonkeyCode/backend/db"
 	"github.com/chaitin/MonkeyCode/backend/db/gitidentity"
 	"github.com/chaitin/MonkeyCode/backend/db/project"
@@ -37,6 +38,13 @@ func (r *GitIdentityRepo) GetByUserID(ctx context.Context, uid uuid.UUID, id uui
 	return r.db.GitIdentity.Query().Where(gitidentity.ID(id), gitidentity.UserID(uid)).Only(ctx)
 }
 
+// GetByInstallationID 根据 installation_id 获取 Git 身份认证
+func (r *GitIdentityRepo) GetByInstallationID(ctx context.Context, installationID int64) (*db.GitIdentity, error) {
+	return r.db.GitIdentity.Query().
+		Where(gitidentity.InstallationID(installationID)).
+		First(ctx)
+}
+
 // List 获取用户的 Git 身份认证列表
 func (r *GitIdentityRepo) List(ctx context.Context, uid uuid.UUID) ([]*db.GitIdentity, error) {
 	return r.db.GitIdentity.Query().Where(gitidentity.UserID(uid)).All(ctx)
@@ -53,6 +61,26 @@ func (r *GitIdentityRepo) Create(ctx context.Context, uid uuid.UUID, req *domain
 		SetEmail(req.Email).
 		SetRemark(req.Remark).
 		Save(ctx)
+}
+
+// CreateFromGitHubApp 从 GitHub App 安装创建 Git 身份认证
+func (r *GitIdentityRepo) CreateFromGitHubApp(ctx context.Context, uid uuid.UUID, installationID int64, username, email string) (*db.GitIdentity, error) {
+	return r.db.GitIdentity.Create().
+		SetUserID(uid).
+		SetPlatform(consts.GitPlatformGithub).
+		SetBaseURL("https://github.com").
+		SetInstallationID(installationID).
+		SetUsername(username).
+		SetEmail(email).
+		Save(ctx)
+}
+
+// UpdateFromGitHubApp 更新 GitHub App 安装的用户信息
+func (r *GitIdentityRepo) UpdateFromGitHubApp(ctx context.Context, id uuid.UUID, username, email string) error {
+	return r.db.GitIdentity.UpdateOneID(id).
+		SetUsername(username).
+		SetEmail(email).
+		Exec(ctx)
 }
 
 // Update 更新 Git 身份认证

@@ -37,13 +37,13 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
 import { IconPasswordFingerprint, IconPencil, IconPlugConnected, IconTrash } from "@tabler/icons-react"
-import { getGitPlatformIcon, getGithubAppInstallUrl } from "@/utils/common"
+import { getGitPlatformIcon } from "@/utils/common"
 import Icon from "@/components/common/Icon"
 import { useCommonData } from "../data-provider"
 import { Spinner } from "@/components/ui/spinner"
 
 export default function Identities() {
-  const githubAppInstallUrl = getGithubAppInstallUrl()
+  const [githubBindLoading, setGithubBindLoading] = useState(false)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [giteeBindLoading, setGiteeBindLoading] = useState(false)
   const [giteaBindLoading, setGiteaBindLoading] = useState(false)
@@ -66,6 +66,34 @@ export default function Identities() {
   const hasGitLabIdentity = identities.some(
     (identity) => identity.platform === ConstsGitPlatform.GitPlatformGitLab
   )
+
+  const handleGithubBind = () => {
+    setGithubBindLoading(true)
+    fetch('/api/v1/users/git-identities/github-app/install-url', {
+      credentials: 'include',
+    })
+      .then(res => res.json())
+      .then(resp => {
+        setGithubBindLoading(false)
+        if (resp.code === 0 && resp.data?.url) {
+          const popup = window.open(resp.data.url, "_blank")
+          if (popup) {
+            const checkClosed = setInterval(() => {
+              if (popup.closed) {
+                clearInterval(checkClosed)
+                reloadIdentities()
+              }
+            }, 500)
+          }
+        } else {
+          toast.error(resp.message || "获取 GitHub App 安装地址失败")
+        }
+      })
+      .catch(() => {
+        setGithubBindLoading(false)
+        toast.error("获取 GitHub App 安装地址失败")
+      })
+  }
 
   const handleGiteeBind = () => {
     setGiteeBindLoading(true)
@@ -197,10 +225,10 @@ export default function Identities() {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => githubAppInstallUrl && window.open(githubAppInstallUrl, "_blank")}
-          disabled={!githubAppInstallUrl}
+          onClick={handleGithubBind}
+          disabled={githubBindLoading}
         >
-          绑定
+          {githubBindLoading ? "获取中..." : "绑定"}
         </Button>
       </ItemActions>
     </Item>
@@ -387,11 +415,11 @@ export default function Identities() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem
-                onClick={() => githubAppInstallUrl && window.open(githubAppInstallUrl, "_blank")}
-                disabled={!githubAppInstallUrl}
+                onClick={handleGithubBind}
+                disabled={githubBindLoading}
               >
                 <Icon name="GitHub-Uncolor" className="fill-foreground size-4" />
-                绑定 GitHub 身份
+                {githubBindLoading ? "获取中..." : "绑定 GitHub 身份"}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={handleGiteeBind}

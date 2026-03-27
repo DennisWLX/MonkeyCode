@@ -9,10 +9,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/samber/do"
 
+	"github.com/chaitin/MonkeyCode/backend/config"
 	"github.com/chaitin/MonkeyCode/backend/consts"
 	"github.com/chaitin/MonkeyCode/backend/db"
 	"github.com/chaitin/MonkeyCode/backend/domain"
 	"github.com/chaitin/MonkeyCode/backend/errcode"
+	"github.com/chaitin/MonkeyCode/backend/pkg/crypto"
 	"github.com/chaitin/MonkeyCode/backend/pkg/cvt"
 	"github.com/chaitin/MonkeyCode/backend/pkg/git/gitea"
 	"github.com/chaitin/MonkeyCode/backend/pkg/git/gitee"
@@ -24,15 +26,30 @@ import (
 type GitIdentityUsecase struct {
 	repo   domain.GitIdentityRepo
 	gh     *github.Github
+	ghApp  *github.GitHubApp
+	cfg    *config.Config
 	logger *slog.Logger
 }
 
 // NewGitIdentityUsecase 创建 Git 身份认证用例
 func NewGitIdentityUsecase(i *do.Injector) (domain.GitIdentityUsecase, error) {
 	logger := do.MustInvoke[*slog.Logger](i)
+	cfg := do.MustInvoke[*config.Config](i)
+
+	var ghApp *github.GitHubApp
+	if cfg.Github.App.AppID > 0 && cfg.Github.App.PrivateKey != "" {
+		var err error
+		ghApp, err = github.NewGitHubApp(cfg.Github.App.AppID, cfg.Github.App.PrivateKey, logger)
+		if err != nil {
+			logger.Warn("failed to create github app client", "error", err)
+		}
+	}
+
 	return &GitIdentityUsecase{
 		repo:   do.MustInvoke[domain.GitIdentityRepo](i),
 		gh:     github.NewGithub(logger),
+		ghApp:  ghApp,
+		cfg:    cfg,
 		logger: logger.With("module", "GitIdentityUsecase"),
 	}, nil
 }
@@ -242,4 +259,103 @@ func (u *GitIdentityUsecase) listGiteeBranches(ctx context.Context, identity *db
 		result = append(result, &domain.Branch{Name: b.Name})
 	}
 	return result, nil
+}
+
+// HandleGitHubAppSetup 处理 GitHub App 安装回调
+func (u *GitIdentityUsecase) HandleGitHubAppSetup(ctx context.Context, req *domain.GitHubAppSetupReq, uid uuid.UUID) (*domain.GitHubAppSetupResp, error) {
+	// 验证 setup_action
+	if req.SetupAction != "install" && req.SetupAction != "update" {
+		return &domain.GitHubAppSetupResp{
+			Success: false,
+			Message: fmt.Sprintf("unsupported setup_action: %s", req.SetupAction),
+		}, nil
+	}
+
+	// 获取用户信息
+	var username, email string
+	if u.ghApp != nil {
+		var err error
+		username, email, err = u.ghApp.GetUserInfo(ctx, req.InstallationID)
+		if err != nil {
+			u.logger.WarnContext(ctx, "failed to get user info from github app, using placeholder",
+				"error", err,
+				"installation_id", req.InstallationID)
+			username = "github-user"
+			email = "user@github.com"
+		}
+	} else {
+		u.logger.WarnContext(ctx, "github app client not configured, using placeholder data",
+			"installation_id", req.InstallationID)
+		username = "github-user"
+		email = "user@github.com"
+	}
+
+	// 检查是否已存在该 installation_id 的记录
+	existing, err := u.repo.GetByInstallationID(ctx, req.InstallationID)
+	if err != nil && !db.IsNotFound(err) {
+		u.logger.ErrorContext(ctx, "failed to get git identity by installation_id",
+			"error", err,
+			"installation_id", req.InstallationID)
+		return nil, err
+	}
+
+	// 如果已存在,更新用户信息
+	if existing != nil {
+		// 更新用户信息
+		if err := u.repo.UpdateFromGitHubApp(ctx, existing.ID, username, email); err != nil {
+			u.logger.ErrorContext(ctx, "failed to update git identity from github app",
+				"error", err,
+				"installation_id", req.InstallationID,
+				"identity_id", existing.ID)
+			return nil, err
+		}
+
+		u.logger.InfoContext(ctx, "github app installation updated successfully",
+			"installation_id", req.InstallationID,
+			"identity_id", existing.ID,
+			"username", username)
+
+		return &domain.GitHubAppSetupResp{
+			Success:      true,
+			AccountLogin: username,
+			Message:      "GitHub App installation updated successfully",
+		}, nil
+	}
+
+	// 创建新的 GitIdentity 记录
+	_, err = u.repo.CreateFromGitHubApp(ctx, uid, req.InstallationID, username, email)
+	if err != nil {
+		u.logger.ErrorContext(ctx, "failed to create git identity from github app",
+			"error", err,
+			"installation_id", req.InstallationID)
+		return nil, err
+	}
+
+	u.logger.InfoContext(ctx, "github app installation created successfully",
+		"installation_id", req.InstallationID,
+		"username", username)
+
+	return &domain.GitHubAppSetupResp{
+		Success:      true,
+		AccountLogin: username,
+		Message:      "GitHub App installation completed successfully",
+	}, nil
+}
+
+// GenerateGitHubAppState 生成 GitHub App 安装的 State 参数
+func (u *GitIdentityUsecase) GenerateGitHubAppState(ctx context.Context, uid uuid.UUID) (string, error) {
+	secret := u.cfg.AdminToken
+	if secret == "" {
+		secret = "github-app-state-secret"
+	}
+
+	state, err := crypto.GenerateState(uid, secret)
+	if err != nil {
+		u.logger.ErrorContext(ctx, "failed to generate state",
+			"error", err,
+			"user_id", uid)
+		return "", err
+	}
+
+	return state, nil
 }

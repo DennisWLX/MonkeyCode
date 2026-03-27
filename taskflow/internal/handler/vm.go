@@ -80,6 +80,7 @@ func (h *VMHandler) Create(c echo.Context) error {
 				Memory:     req.Memory,
 				EnvVars:    req.EnvVars,
 				TtlSeconds: req.TTL,
+				UserId:     req.UserID,
 			},
 		},
 	}

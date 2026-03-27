@@ -80,7 +80,8 @@ func (c *StreamClient) handleCreateVM(ctx context.Context, cmd *pb.TaskflowComma
 	c.logger.Info("received create vm command", "vm_id", createCmd.VmId)
 
 	vm, err := c.vmMgr.Create(ctx, vm.CreateOptions{
-		UserID:     createCmd.VmId,
+		VMID:       createCmd.VmId,
+		UserID:     createCmd.UserId,
 		ImageURL:   createCmd.ImageUrl,
 		GitURL:     createCmd.GitUrl,
 		GitToken:   createCmd.GitToken,

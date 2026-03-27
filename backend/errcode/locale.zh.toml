@@ -174,3 +174,15 @@ other = "模型配置未找到"
 
 [err-image-not-found]
 other = "镜像配置未找到"
+
+[github-app-invalid-state]
+other = "无效的状态参数"
+
+[github-app-get-user-info-failed]
+other = "获取 GitHub 用户信息失败"
+
+[github-app-create-identity-failed]
+other = "创建 Git 身份认证失败"
+
+[github-app-update-identity-failed]
+other = "更新 Git 身份认证失败"

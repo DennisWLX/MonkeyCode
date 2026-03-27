@@ -186,9 +186,11 @@ func Init(dir string) (*Config, error) {
 
 // GithubConfig GitHub 配置
 type GithubConfig struct {
-	Token   string            `mapstructure:"token"`
-	Enabled bool              `mapstructure:"enabled"`
-	OAuth   GithubOAuthConfig `mapstructure:"oauth"`
+	Token         string            `mapstructure:"token"`
+	Enabled       bool              `mapstructure:"enabled"`
+	OAuth         GithubOAuthConfig `mapstructure:"oauth"`
+	App           GithubAppConfig   `mapstructure:"app"`
+	AppInstallUrl string            `mapstructure:"app_install_url"`
 }
 
 // GithubOAuthConfig GitHub OAuth 配置
@@ -196,6 +198,13 @@ type GithubOAuthConfig struct {
 	ClientID     string `mapstructure:"client_id"`
 	ClientSecret string `mapstructure:"client_secret"`
 	RedirectURL  string `mapstructure:"redirect_url"`
+}
+
+// GithubAppConfig GitHub App 配置
+type GithubAppConfig struct {
+	AppID         int64  `mapstructure:"app_id"`
+	PrivateKey    string `mapstructure:"private_key"`
+	WebhookSecret string `mapstructure:"webhook_secret"`
 }
 
 // GitlabConfig GitLab 配置

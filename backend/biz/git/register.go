@@ -21,6 +21,10 @@ func RegisterGit(i *do.Injector) {
 	do.Provide(i, v1.NewGitIdentityHandler)
 	do.MustInvoke[*v1.GitIdentityHandler](i)
 
+	// GitHub App Setup Handler
+	do.Provide(i, v1.NewGitHubAppSetupHandler)
+	do.MustInvoke[*v1.GitHubAppSetupHandler](i)
+
 	// GitBot Repo
 	do.Provide(i, repo.NewGitBotRepo)
 
